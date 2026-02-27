@@ -1,11 +1,11 @@
 <div align="center">
-<b>Luna is a personal project used to learn more about operating systems and how computers work in low-level area.</b>
+<b>Sol is a personal project used to learn more about operating systems and how computers work in low-level area.</b>
 </div>
 &nbsp;
 
 <div align="center">
-<img alt="GitHub last commit" src="https://img.shields.io/github/last-commit/Davy133/Luna">
-<img alt="GitHub" src="https://img.shields.io/github/license/Davy133/Luna">
+<img alt="GitHub last commit" src="https://img.shields.io/github/last-commit/Davy133/Sol">
+<img alt="GitHub" src="https://img.shields.io/github/license/Davy133/Sol">
 </div>
 
 <div>
@@ -15,15 +15,15 @@
 
 ```bash
 #Clone this repository.
-$ git clone https://github.com/Davy133/Luna
+$ git clone https://github.com/Davy133/Sol
 
 #Go into the repository.
-$ cd Luna
+$ cd Sol
 
 #Use Make to build it
 $ make os-image
 ```
 <div>
 <h1>License</h1>
-<p>This project is under <a href="https://github.com/Davy133/DaOS/blob/main/LICENSE">MIT License</a>.</p>
+<p>This project is under <a href="https://github.com/Davy133/Sol/blob/main/LICENSE">MIT License</a>.</p>
 </div>
