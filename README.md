@@ -1,37 +1,35 @@
-<div align="center">
+<p align="center">
+  <img width="200" height="200" alt="Sol operating system symbol" src="https://github.com/user-attachments/assets/33f96a9a-5ac4-4267-979b-c8354acfe7cb"/>
+</p>
 
-  <img width="200" height="200" alt="symbol_sun" src="https://github.com/user-attachments/assets/33f96a9a-5ac4-4267-979b-c8354acfe7cb" /></br>
+<h1 align="center">Sol</h1>
 
-</div>
+<p align="center">
+  <i>A personal project used to learn more about operating systems<br>
+  and how computers work at a low level.</i>
+</p>
 
-<div align="center">
-  
-<b>Sol is a personal project used to learn more about operating systems and how computers work in low-level area.</b>
-</div>
+<p align="center">
+  <img src="https://img.shields.io/github/license/Davy133/Sol?style=for-the-badge" alt="License"/>
+</p>
 
-&nbsp;
+---
 
-<div align="center">
+### How to Run
 
-<img alt="GitHub" src="https://img.shields.io/github/license/Davy133/Sol">
-</div>
+To build and run Sol you will need:
 
-<div>
-<h1>How to Run</h1>
-<p>In order to run this project you will need NASM, an machine emulator (like Bochs or Qemu), Make and a <a href="https://wiki.osdev.org/GCC_Cross-Compiler">Cross Compiler</a>.</p>
-</div>
+- **NASM**
+- **Emulator**: QEMU or Bochs
+- **Make**
+- **Cross-compiler** — see [OSDev GCC Cross-Compiler guide](https://wiki.osdev.org/GCC_Cross-Compiler)
 
 ```bash
-#Clone this repository.
-$ git clone https://github.com/Davy133/Sol
+# 1. Clone the repository
+git clone https://github.com/Davy133/Sol.git
 
-#Go into the repository.
-$ cd Sol
+# 2. Enter the directory
+cd Sol
 
-#Use Make to build it
-$ make os-image
-```
-<div>
-<h1>License</h1>
-<p>This project is under <a href="https://github.com/Davy133/Sol/blob/main/LICENSE">MIT License</a>.</p>
-</div>
+# 3. Build the bootable OS image
+make os-image
