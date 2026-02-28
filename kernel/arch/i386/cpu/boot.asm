@@ -25,6 +25,7 @@ stack_top:
 extern _init
 extern enable_paging
 extern gdt_init
+extern idt_init
 extern kernel_main
 
 section .text
@@ -37,6 +38,8 @@ _start:
 
     ; Enable paging (32-bit paging with 4MB pages).
     call enable_paging
+
+    call idt_init
 
     ; Call the global constructors.
     call _init

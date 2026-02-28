@@ -28,11 +28,31 @@ enum gdt_selectors {
     GDT_USER_DATA   = 4,
     GDT_TSS         = 5,
 };
+typedef struct {
+    uint32_t prev_tss;
+    uint32_t esp0;
+    uint32_t ss0;
+    uint32_t esp1;
+    uint32_t ss1;
+    uint32_t esp2;
+    uint32_t ss2;
+    uint32_t cr3;
+    uint32_t eip;
+    uint32_t eflags;
+    uint32_t eax, ecx, edx, ebx;
+    uint32_t esp, ebp, esi, edi;
+    uint32_t es, cs, ss, ds, fs, gs;
+    uint32_t ldt;
+    uint16_t trap;
+    uint16_t iomap_base;
+} __attribute__((packed)) tss_entry_t;
 
 void gdt_init(void);
 void gdt_set_gate(int num, uint32_t base, uint32_t limit, uint8_t access, uint8_t gran);
 
-//vai vir do assembly
+void tss_set_kernel_stack(uint32_t stack);
+
 extern void gdt_flush(gdt_ptr_t *gdtp);
+extern void tss_flush(void);
 
 #endif
