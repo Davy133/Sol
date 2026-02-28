@@ -1,4 +1,5 @@
 #include "gdt.h"
+#include <string.h>
 
 static gdt_entry_t gdt[GDT_ENTRIES];
 static gdt_ptr_t gdtp;
@@ -20,11 +21,7 @@ void gdt_set_gate(int num, uint32_t base, uint32_t limit, uint8_t access, uint8_
 void gdt_init(void)
 {
     for (int i = 0; i < GDT_ENTRIES; i++)
-    {
         gdt_set_gate(i, 0, 0, 0, 0);
-    }
-
-    gdt_set_gate(GDT_NULL, 0, 0, 0, 0);
 
     gdt_set_gate(GDT_KERNEL_CODE, 0, 0xFFFFFFFF, 0x9A, 0xCF);
 
@@ -34,8 +31,7 @@ void gdt_init(void)
 
     gdt_set_gate(GDT_USER_DATA, 0, 0xFFFFFFFF, 0xF2, 0xCF);
 
-    for (uint32_t i = 0; i < sizeof(tss_entry_t); i++)
-        ((uint8_t *)&tss)[i] = 0;
+    memset(&tss, 0, sizeof(tss_entry_t));
 
     tss.ss0 = GDT_KERNEL_DATA << 3;
     tss.iomap_base = sizeof(tss_entry_t);
