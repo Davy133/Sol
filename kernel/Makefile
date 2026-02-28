@@ -6,6 +6,8 @@ CFLAGS?=-O2 -g
 CPPFLAGS?=
 LDFLAGS?=
 LIBS?=
+NASM?=nasm
+NASMFLAGS?=-f elf32
 
 DESTDIR?=
 PREFIX?=/usr/local
@@ -48,7 +50,7 @@ $(ARCHDIR)/crtend.o \
 $(ARCHDIR)/crtn.o \
 
 .PHONY: all clean install install-headers install-kernel
-.SUFFIXES: .o .c .S
+.SUFFIXES: .o .c .asm
 
 all: sol.kernel
 
@@ -62,13 +64,13 @@ $(ARCHDIR)/crtbegin.o $(ARCHDIR)/crtend.o:
 .c.o:
 	$(CC) -MD -c $< -o $@ -std=gnu11 $(CFLAGS) $(CPPFLAGS)
 
-.S.o:
-	$(CC) -MD -c $< -o $@ $(CFLAGS) $(CPPFLAGS)
+.asm.o:
+	$(NASM) $(NASMFLAGS) -MD $(@:.o=.d) $< -o $@
 
 clean:
 	rm -f sol.kernel
 	rm -f $(OBJS) *.o */*.o */*/*.o
-	rm -f $(OBJS:.o=.d) *.d */*.d */*/*.d
+	rm -f $(OBJS:.o=.d) *.d */*.d */*/*.d */*/*.asm.d
 
 install: install-headers install-kernel
 
