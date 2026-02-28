@@ -24,6 +24,7 @@ stack_top:
 ; The kernel entry point.
 extern _init
 extern enable_paging
+extern gdt_init
 extern kernel_main
 
 section .text
@@ -31,6 +32,10 @@ global _start
 _start:
     mov esp, stack_top
 
+    ; Initialize the GDT before enabling paging.
+    call gdt_init
+
+    ; Enable paging (32-bit paging with 4MB pages).
     call enable_paging
 
     ; Call the global constructors.
