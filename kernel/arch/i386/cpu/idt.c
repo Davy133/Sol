@@ -1,4 +1,5 @@
 #include "idt.h"
+#include "gdt.h"
 #include <stdio.h>
 
 static idt_entry_t idt[IDT_ENTRIES];
@@ -65,8 +66,8 @@ void idt_init(void)
 
     for (int i = 0; i < 32; i++)
     {
-        uint8_t flags = (i == 3) ? IDT_USER_INT_GATE : IDT_INTERRUPT_GATE;
-        idt_set_gate(i, (uint32_t)isr_stubs[i], 0x08, flags);
+        uint8_t flags = IDT_INTERRUPT_GATE;
+        idt_set_gate(i, (uint32_t)isr_stubs[i], GDT_KERNEL_CODE << 3, flags);
     }
 
     idt_flush(&idtp);
