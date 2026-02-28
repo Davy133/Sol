@@ -1,4 +1,0 @@
-#define VIDEO_ADDRESS 0xb8000
-#define VGA_HEIGHT 25
-#define VGA_WIDTH 80
-
