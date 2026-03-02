@@ -36,6 +36,11 @@ typedef struct {
 void idt_init(void);
 void idt_set_gate(uint8_t num, uint32_t base, uint16_t selector, uint8_t flags);
 void isr_handler(registers_t *regs);
+void irq_handler(registers_t *regs);
+
+/* IRQ handler registration */
+typedef void (*irq_handler_t)(registers_t *);
+void irq_register_handler(uint8_t irq, irq_handler_t handler);
 
 extern void idt_flush(idt_ptr_t *idtp);
 
@@ -50,5 +55,12 @@ extern void isr21(void); extern void isr22(void); extern void isr23(void);
 extern void isr24(void); extern void isr25(void); extern void isr26(void);
 extern void isr27(void); extern void isr28(void); extern void isr29(void);
 extern void isr30(void); extern void isr31(void);
+
+extern void irq0(void);  extern void irq1(void);  extern void irq2(void);
+extern void irq3(void);  extern void irq4(void);  extern void irq5(void);
+extern void irq6(void);  extern void irq7(void);  extern void irq8(void);
+extern void irq9(void);  extern void irq10(void); extern void irq11(void);
+extern void irq12(void); extern void irq13(void); extern void irq14(void);
+extern void irq15(void);
 
 #endif
