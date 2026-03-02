@@ -13,12 +13,14 @@ static void timer_handler(registers_t *regs) {
 }
 
 void kernel_main(void) {
-    terminal_initialize();
-    printf("Hello, kernel World!\n");
-
-    irq_register_handler(0, timer_handler);
-    asm volatile("sti");           /* habilita interrupções */
-
-    for (;;)
-        asm volatile("hlt");       /* espera a próxima interrupção */
+	terminal_initialize();
+	printf("Hello, kernel World!\n");
+  printf("Testando quebra de linha:\n");
+  printf("Linha 1\nLinha 2\nLinha 3\n");
+    
+  printf("\nTestando o Tab:\n");
+  printf("Coluna 1\tColuna 2\tColuna 3\n");
+    
+  printf("\nTestando o Carriage Return:\n");
+  printf("Isso vai sumir\rIsso vai ficar\n");
 }
