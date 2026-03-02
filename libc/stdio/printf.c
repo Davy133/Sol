@@ -61,6 +61,27 @@ int printf(const char* restrict format, ...) {
 			if (!print(str, len))
 				return -1;
 			written += len;
+		} else if (*format == 'd' || *format == 'i' || *format == 'u') {
+			format++;
+			char numbuf[32];
+			unsigned int val;
+			int neg = 0;
+			if (format[-1] != 'u') {
+				int signed_val = va_arg(parameters, int);
+				if (signed_val < 0) { neg = 1; val = (unsigned int)(-signed_val); }
+				else val = (unsigned int)signed_val;
+			} else {
+				val = va_arg(parameters, unsigned int);
+			}
+			int idx = 31;
+			numbuf[idx] = '\0';
+			if (val == 0) numbuf[--idx] = '0';
+			while (val > 0) { numbuf[--idx] = '0' + (val % 10); val /= 10; }
+			if (neg) numbuf[--idx] = '-';
+			const char* numstr = &numbuf[idx];
+			size_t len = strlen(numstr);
+			if (!print(numstr, len)) return -1;
+			written += len;
 		} else {
 			format = format_begun_at;
 			size_t len = strlen(format);

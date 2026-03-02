@@ -1,9 +1,12 @@
 #include "idt.h"
 #include "gdt.h"
+#include "pic.h"
 #include <stdio.h>
 
 static idt_entry_t idt[IDT_ENTRIES];
 static idt_ptr_t idtp;
+
+static irq_handler_t irq_handlers[16] = { 0 };
 
 static const char *exception_messages[] = {
     "Division By Zero",
@@ -70,7 +73,23 @@ void idt_init(void)
         idt_set_gate(i, (uint32_t)isr_stubs[i], GDT_KERNEL_CODE << 3, flags);
     }
 
+    /* Remap PIC and register IRQ gates (32–47) */
+    pic_init();
+
+    static void (*irq_stubs[16])(void) = {
+        irq0,  irq1,  irq2,  irq3,  irq4,  irq5,  irq6,  irq7,
+        irq8,  irq9,  irq10, irq11, irq12, irq13, irq14, irq15,
+    };
+
+    for (int i = 0; i < 16; i++)
+        idt_set_gate(32 + i, (uint32_t)irq_stubs[i], GDT_KERNEL_CODE << 3, IDT_INTERRUPT_GATE);
+
     idt_flush(&idtp);
+}
+
+void irq_register_handler(uint8_t irq, irq_handler_t handler) {
+    if (irq < 16)
+        irq_handlers[irq] = handler;
 }
 
 void isr_handler(registers_t *regs)
@@ -83,4 +102,14 @@ void isr_handler(registers_t *regs)
                regs->err_code);
         for (;;);
     }
+}
+
+void irq_handler(registers_t *regs)
+{
+    uint8_t irq = regs->int_no - 32;
+
+    if (irq_handlers[irq])
+        irq_handlers[irq](regs);
+
+    pic_send_eoi(irq);
 }
