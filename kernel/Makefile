@@ -34,31 +34,31 @@ $(KERNEL_ARCH_OBJS) \
 core/kernel.o \
 
 OBJS=\
-$(ARCHDIR)/cpu/crti.o \
-$(ARCHDIR)/cpu/crtbegin.o \
+$(ARCHDIR)/boot/crti.o \
+$(ARCHDIR)/boot/crtbegin.o \
 $(KERNEL_OBJS) \
-$(ARCHDIR)/cpu/crtend.o \
-$(ARCHDIR)/cpu/crtn.o \
+$(ARCHDIR)/boot/crtend.o \
+$(ARCHDIR)/boot/crtn.o \
 
 LINK_LIST=\
 $(LDFLAGS) \
-$(ARCHDIR)/cpu/crti.o \
-$(ARCHDIR)/cpu/crtbegin.o \
+$(ARCHDIR)/boot/crti.o \
+$(ARCHDIR)/boot/crtbegin.o \
 $(KERNEL_OBJS) \
 $(LIBS) \
-$(ARCHDIR)/cpu/crtend.o \
-$(ARCHDIR)/cpu/crtn.o \
+$(ARCHDIR)/boot/crtend.o \
+$(ARCHDIR)/boot/crtn.o \
 
 .PHONY: all clean install install-headers install-kernel
 .SUFFIXES: .o .c .asm
 
 all: sol.kernel
 
-sol.kernel: $(OBJS) $(ARCHDIR)/linker.ld
-	$(CC) -T $(ARCHDIR)/linker.ld -o $@ $(CFLAGS) $(LINK_LIST)
+sol.kernel: $(OBJS) $(ARCHDIR)/boot/linker.ld
+	$(CC) -T $(ARCHDIR)/boot/linker.ld -o $@ $(CFLAGS) $(LINK_LIST)
 	grub-file --is-x86-multiboot sol.kernel
 
-$(ARCHDIR)/cpu/crtbegin.o $(ARCHDIR)/cpu/crtend.o:
+$(ARCHDIR)/boot/crtbegin.o $(ARCHDIR)/boot/crtend.o:
 	OBJ=`$(CC) $(CFLAGS) $(LDFLAGS) -print-file-name=$(@F)` && cp "$$OBJ" $@
 
 .c.o:
