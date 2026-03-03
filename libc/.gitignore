@@ -1,5 +1,3 @@
 *.a
 *.d
 *.o
-/.vscode
-/.vscode/*
