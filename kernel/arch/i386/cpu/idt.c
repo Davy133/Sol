@@ -100,6 +100,13 @@ void isr_handler(registers_t *regs)
                exception_messages[regs->int_no],
                regs->int_no,
                regs->err_code);
+
+        printf("EAX: %08x EBX: %08x ECX: %08x EDX: %08x\n",
+               regs->eax, regs->ebx, regs->ecx, regs->edx);
+        printf("ESI: %08x EDI: %08x EBP: %08x ESP: %08x\n",
+               regs->esi, regs->edi, regs->ebp, regs->esp);
+        printf("EIP: %08x CS: %08x EFLAGS: %08x\n",
+               regs->eip, regs->cs, regs->eflags);
         for (;;);
     }
 }
