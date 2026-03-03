@@ -1,4 +1,7 @@
 #include <kernel/serial.h>
+#include <stdarg.h>
+#include <stdint.h>
+#include <string.h>
 
 int serial_init(void) {
     outb(SERIAL_PORT + 1, 0x00);    // Disable all interrupts
@@ -36,5 +39,99 @@ void serial_write_string(const char* str) {
             serial_write('\r');
         serial_write(*str++);
     }
+}
+
+static void serial_write_num(unsigned int val, int base, int is_signed,
+                             const char *digits, int width) {
+    char buf[32];
+    int idx = 31;
+    int neg = 0;
+
+    buf[idx] = '\0';
+
+    if (is_signed && (int)val < 0) {
+        neg = 1;
+        val = (unsigned int)(-(int)val);
+    }
+
+    if (val == 0)
+        buf[--idx] = '0';
+    while (val > 0) {
+        buf[--idx] = digits[val % base];
+        val /= base;
+    }
+    if (neg)
+        buf[--idx] = '-';
+
+    int numlen = 31 - idx;
+    while (numlen < width) {
+        buf[--idx] = '0';
+        numlen++;
+    }
+
+    serial_write_string(&buf[idx]);
+}
+
+void serial_printf(const char *fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+
+    while (*fmt) {
+        if (fmt[0] != '%' || fmt[1] == '%') {
+            if (*fmt == '%') fmt++;
+            serial_write(*fmt++);
+            continue;
+        }
+        fmt++;
+
+        int width = 0;
+        if (*fmt == '0') {
+            fmt++;
+            while (*fmt >= '0' && *fmt <= '9')
+                width = width * 10 + (*fmt++ - '0');
+        }
+
+        switch (*fmt++) {
+            case 'c': {
+                char c = (char)va_arg(args, int);
+                serial_write(c);
+                break;
+            }
+            case 's': {
+                const char *s = va_arg(args, const char *);
+                serial_write_string(s ? s : "(null)");
+                break;
+            }
+            case 'd':
+            case 'i': {
+                int v = va_arg(args, int);
+                serial_write_num((unsigned int)v, 10, 1,
+                                 "0123456789", width);
+                break;
+            }
+            case 'u': {
+                unsigned int v = va_arg(args, unsigned int);
+                serial_write_num(v, 10, 0, "0123456789", width);
+                break;
+            }
+            case 'x': {
+                unsigned int v = va_arg(args, unsigned int);
+                serial_write_num(v, 16, 0, "0123456789abcdef", width);
+                break;
+            }
+            case 'X': {
+                unsigned int v = va_arg(args, unsigned int);
+                serial_write_num(v, 16, 0, "0123456789ABCDEF", width);
+                break;
+            }
+            default:
+                serial_write('%');
+                fmt--;
+                serial_write(*fmt++);
+                break;
+        }
+    }
+
+    va_end(args);
 }
 
