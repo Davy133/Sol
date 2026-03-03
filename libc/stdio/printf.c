@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 
+/* código feio da porra */
 static bool print(const char* data, size_t length) {
 	const unsigned char* bytes = (const unsigned char*) data;
 	for (size_t i = 0; i < length; i++)
@@ -61,12 +62,22 @@ int printf(const char* restrict format, ...) {
 			if (!print(str, len))
 				return -1;
 			written += len;
-		} else if (*format == 'd' || *format == 'i' || *format == 'u') {
+		} else if (*format == '0') {
+			/* zero-padding: %0<width><conv> */
 			format++;
+			int width = 0;
+			while (*format >= '0' && *format <= '9')
+				width = width * 10 + (*format++ - '0');
+			/* fall through to numeric handling below */
+			char spec = *format++;
 			char numbuf[32];
 			unsigned int val;
 			int neg = 0;
-			if (format[-1] != 'u') {
+			int base = 10;
+			const char *digits = "0123456789abcdef";
+			if (spec == 'X') digits = "0123456789ABCDEF";
+			if (spec == 'x' || spec == 'X') base = 16;
+			if (spec == 'd' || spec == 'i') {
 				int signed_val = va_arg(parameters, int);
 				if (signed_val < 0) { neg = 1; val = (unsigned int)(-signed_val); }
 				else val = (unsigned int)signed_val;
@@ -76,7 +87,34 @@ int printf(const char* restrict format, ...) {
 			int idx = 31;
 			numbuf[idx] = '\0';
 			if (val == 0) numbuf[--idx] = '0';
-			while (val > 0) { numbuf[--idx] = '0' + (val % 10); val /= 10; }
+			while (val > 0) { numbuf[--idx] = digits[val % base]; val /= base; }
+			if (neg) numbuf[--idx] = '-';
+			int numlen = 31 - idx;
+			while (numlen < width) { numbuf[--idx] = '0'; numlen++; }
+			const char* numstr = &numbuf[idx];
+			size_t len = strlen(numstr);
+			if (!print(numstr, len)) return -1;
+			written += len;
+		} else if (*format == 'd' || *format == 'i' || *format == 'u' || *format == 'x' || *format == 'X') {
+			char spec = *format++;
+			char numbuf[32];
+			unsigned int val;
+			int neg = 0;
+			int base = 10;
+			const char *digits = "0123456789abcdef";
+			if (spec == 'X') digits = "0123456789ABCDEF";
+			if (spec == 'x' || spec == 'X') base = 16;
+			if (spec == 'd' || spec == 'i') {
+				int signed_val = va_arg(parameters, int);
+				if (signed_val < 0) { neg = 1; val = (unsigned int)(-signed_val); }
+				else val = (unsigned int)signed_val;
+			} else {
+				val = va_arg(parameters, unsigned int);
+			}
+			int idx = 31;
+			numbuf[idx] = '\0';
+			if (val == 0) numbuf[--idx] = '0';
+			while (val > 0) { numbuf[--idx] = digits[val % base]; val /= base; }
 			if (neg) numbuf[--idx] = '-';
 			const char* numstr = &numbuf[idx];
 			size_t len = strlen(numstr);
