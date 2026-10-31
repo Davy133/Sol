@@ -1,4 +1,4 @@
-#include "pic.h"
+#include <asm/pic.h>
 
 #define IA32_APIC_BASE          0x1B
 #define IA32_APIC_BASE_ENABLE   (1 << 11)

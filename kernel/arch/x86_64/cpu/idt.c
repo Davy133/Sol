@@ -1,7 +1,7 @@
-#include "idt.h"
-#include "gdt.h"
-#include "panic.h"
-#include "pic.h"
+#include <asm/dump.h>
+#include <asm/gdt.h>
+#include <asm/idt.h>
+#include <asm/pic.h>
 
 #define VECTOR_DOUBLE_FAULT 8
 

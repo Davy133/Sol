@@ -1,8 +1,7 @@
+#include <asm/idt.h>
+#include <asm/pic.h>
 #include <kernel/io.h>
 #include <kernel/pit.h>
-
-#include "../cpu/idt.h"
-#include "../cpu/pic.h"
 
 #define PIT_CHANNEL0    0x40
 #define PIT_COMMAND     0x43

@@ -1,4 +1,4 @@
-#include "gdt.h"
+#include <asm/gdt.h>
 #include <string.h>
 
 static gdt_entry_t gdt[GDT_ENTRIES];
