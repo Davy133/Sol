@@ -1,15 +1,21 @@
 #include <kernel/boot.h>
+#include <kernel/panic.h>
+#include <kernel/pit.h>
 
 #include "../cpu/gdt.h"
+#include "../cpu/idt.h"
 
 void arch_start(const struct boot_info* info) {
+    panic_init(&info->framebuffer);
     gdt_init();
+    idt_init();
+    pit_init();
+    asm volatile("sti");
 
-    // Transfer control to the main kernel.
     kernel_main(info);
 
-    // Hang if kernel_main unexpectedly returns.
-    arch_halt();
+    for (;;)
+        asm volatile("hlt");
 }
 
 void arch_halt(void) {
