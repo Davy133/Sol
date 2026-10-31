@@ -1,14 +1,19 @@
+default rel
+
 global gdt_flush
 global tss_flush
 
 ; void gdt_flush(gdt_ptr_t *gdtp);
-; Argument passed on the stack at [esp+4]
+; Argument passed in rdi
 gdt_flush:
-    mov eax, [esp+4]        ; pointer to gdt_ptr_t
-    lgdt [eax]
+    lgdt [rdi]
 
-    ; Far jump para recarregar CS (kernel code selector 0x08)
-    jmp 0x08:.reload
+    ; Long mode has no far jump to an immediate, so reload CS (kernel code
+    ; selector 0x08) with a far return instead.
+    push qword 0x08
+    lea rax, [.reload]
+    push rax
+    retfq
 
 .reload:
     mov ax, 0x10            ; kernel data

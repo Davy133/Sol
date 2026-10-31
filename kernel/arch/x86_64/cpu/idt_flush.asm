@@ -6,15 +6,15 @@ extern irq_handler
 %macro ISR_NOERRCODE 1
 global isr%1
 isr%1:
-    push dword 0
-    push dword %1
+    push qword 0
+    push qword %1
     jmp isr_common_stub
 %endmacro
 
 %macro ISR_ERRCODE 1
 global isr%1
 isr%1:
-    push dword %1
+    push qword %1
     jmp isr_common_stub
 %endmacro
 
@@ -57,8 +57,8 @@ ISR_NOERRCODE 31
 %macro IRQ 2
 global irq%1
 irq%1:
-    push dword 0
-    push dword %2
+    push qword 0
+    push qword %2
     jmp irq_common_stub
 %endmacro
 
@@ -79,49 +79,65 @@ IRQ 13, 45
 IRQ 14, 46
 IRQ 15, 47
 
+; Long mode has no pusha/popa. The order here must match registers_t.
+%macro SAVE_REGISTERS 0
+    push rax
+    push rcx
+    push rdx
+    push rbx
+    push rbp
+    push rsi
+    push rdi
+    push r8
+    push r9
+    push r10
+    push r11
+    push r12
+    push r13
+    push r14
+    push r15
+%endmacro
+
+%macro RESTORE_REGISTERS 0
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop r11
+    pop r10
+    pop r9
+    pop r8
+    pop rdi
+    pop rsi
+    pop rbp
+    pop rbx
+    pop rdx
+    pop rcx
+    pop rax
+%endmacro
+
+; The CPU pushes 5 qwords (6 with an error code, padded by the stubs otherwise)
+; from a 16-byte aligned stack, so with int_no and the 15 registers RSP is
+; 16-byte aligned again at the call, as the SysV ABI requires.
 isr_common_stub:
-    pusha
-    mov ax, ds
-    push eax
-    mov ax, 0x10
-    mov ds, ax
-    mov es, ax
-    mov fs, ax
-    mov gs, ax
-    push esp
+    SAVE_REGISTERS
+    cld
+    mov rdi, rsp
     call isr_handler
-    add esp, 4
-    pop eax
-    mov ds, ax
-    mov es, ax
-    mov fs, ax
-    mov gs, ax
-    popa
-    add esp, 8
-    iret
+    RESTORE_REGISTERS
+    add rsp, 16
+    iretq
 
 irq_common_stub:
-    pusha
-    mov ax, ds
-    push eax
-    mov ax, 0x10
-    mov ds, ax
-    mov es, ax
-    mov fs, ax
-    mov gs, ax
-    push esp
+    SAVE_REGISTERS
+    cld
+    mov rdi, rsp
     call irq_handler
-    add esp, 4
-    pop eax
-    mov ds, ax
-    mov es, ax
-    mov fs, ax
-    mov gs, ax
-    popa
-    add esp, 8
-    iret
+    RESTORE_REGISTERS
+    add rsp, 16
+    iretq
 
+; void idt_flush(idt_ptr_t *idtp);
 idt_flush:
-    mov eax, [esp+4]
-    lidt [eax]
+    lidt [rdi]
     ret

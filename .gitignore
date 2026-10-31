@@ -1,1 +1,5 @@
 /.vscode/
+/sysroot/
+/isodir/
+/sol.iso
+/limine-binary/

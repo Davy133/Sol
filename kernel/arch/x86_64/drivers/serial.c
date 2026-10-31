@@ -41,7 +41,7 @@ void serial_write_string(const char* str) {
     }
 }
 
-static void serial_write_num(unsigned int val, int base, int is_signed,
+static void serial_write_num(unsigned long val, int base, int is_signed,
                              const char *digits, int width) {
     char buf[32];
     int idx = 31;
@@ -49,9 +49,9 @@ static void serial_write_num(unsigned int val, int base, int is_signed,
 
     buf[idx] = '\0';
 
-    if (is_signed && (int)val < 0) {
+    if (is_signed && (long)val < 0) {
         neg = 1;
-        val = (unsigned int)(-(int)val);
+        val = -val;
     }
 
     if (val == 0)
@@ -79,6 +79,7 @@ void serial_printf(const char *fmt, ...) {
     while (*fmt) {
         if (fmt[0] != '%' || fmt[1] == '%') {
             if (*fmt == '%') fmt++;
+            if (*fmt == '\n') serial_write('\r');
             serial_write(*fmt++);
             continue;
         }
@@ -89,6 +90,12 @@ void serial_printf(const char *fmt, ...) {
             fmt++;
             while (*fmt >= '0' && *fmt <= '9')
                 width = width * 10 + (*fmt++ - '0');
+        }
+
+        int is_long = 0;
+        while (*fmt == 'l') {
+            is_long = 1;
+            fmt++;
         }
 
         switch (*fmt++) {
@@ -104,23 +111,26 @@ void serial_printf(const char *fmt, ...) {
             }
             case 'd':
             case 'i': {
-                int v = va_arg(args, int);
-                serial_write_num((unsigned int)v, 10, 1,
+                long v = is_long ? va_arg(args, long) : va_arg(args, int);
+                serial_write_num((unsigned long)v, 10, 1,
                                  "0123456789", width);
                 break;
             }
             case 'u': {
-                unsigned int v = va_arg(args, unsigned int);
+                unsigned long v = is_long ? va_arg(args, unsigned long)
+                                          : va_arg(args, unsigned int);
                 serial_write_num(v, 10, 0, "0123456789", width);
                 break;
             }
             case 'x': {
-                unsigned int v = va_arg(args, unsigned int);
+                unsigned long v = is_long ? va_arg(args, unsigned long)
+                                          : va_arg(args, unsigned int);
                 serial_write_num(v, 16, 0, "0123456789abcdef", width);
                 break;
             }
             case 'X': {
-                unsigned int v = va_arg(args, unsigned int);
+                unsigned long v = is_long ? va_arg(args, unsigned long)
+                                          : va_arg(args, unsigned int);
                 serial_write_num(v, 16, 0, "0123456789ABCDEF", width);
                 break;
             }

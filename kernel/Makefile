@@ -34,32 +34,20 @@ $(KERNEL_ARCH_OBJS) \
 core/kernel.o \
 
 OBJS=\
-$(ARCHDIR)/boot/crti.o \
-$(ARCHDIR)/boot/crtbegin.o \
 $(KERNEL_OBJS) \
-$(ARCHDIR)/boot/crtend.o \
-$(ARCHDIR)/boot/crtn.o \
 
 LINK_LIST=\
 $(LDFLAGS) \
-$(ARCHDIR)/boot/crti.o \
-$(ARCHDIR)/boot/crtbegin.o \
 $(KERNEL_OBJS) \
 $(LIBS) \
-$(ARCHDIR)/boot/crtend.o \
-$(ARCHDIR)/boot/crtn.o \
 
 .PHONY: all clean install install-headers install-kernel
 .SUFFIXES: .o .c .asm
 
 all: sol.kernel
 
-sol.kernel: $(OBJS) $(ARCHDIR)/boot/linker.ld
-	$(CC) -T $(ARCHDIR)/boot/linker.ld -o $@ $(CFLAGS) $(LINK_LIST)
-	grub-file --is-x86-multiboot sol.kernel
-
-$(ARCHDIR)/boot/crtbegin.o $(ARCHDIR)/boot/crtend.o:
-	OBJ=`$(CC) $(CFLAGS) $(LDFLAGS) -print-file-name=$(@F)` && cp "$$OBJ" $@
+sol.kernel: $(OBJS) $(KERNEL_LINKER_SCRIPT)
+	$(CC) -T $(KERNEL_LINKER_SCRIPT) -o $@ $(CFLAGS) $(LINK_LIST)
 
 .c.o:
 	$(CC) -MD -c $< -o $@ -std=gnu11 $(CFLAGS) $(CPPFLAGS)
@@ -69,8 +57,8 @@ $(ARCHDIR)/boot/crtbegin.o $(ARCHDIR)/boot/crtend.o:
 
 clean:
 	rm -f sol.kernel
-	rm -f $(OBJS) *.o */*.o */*/*.o */*/*/*.o
-	rm -f $(OBJS:.o=.d) *.d */*.d */*/*.d */*/*/*.d */*/*/*.asm.d
+	rm -f $(OBJS) *.o */*.o */*/*.o */*/*/*.o */*/*/*/*.o
+	rm -f $(OBJS:.o=.d) *.d */*.d */*/*.d */*/*/*.d */*/*/*/*.d */*/*/*.asm.d
 
 install: install-headers install-kernel
 

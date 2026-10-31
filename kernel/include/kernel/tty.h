@@ -3,7 +3,9 @@
 
 #include <stddef.h>
 
-void terminal_initialize(void);
+#include <kernel/boot.h>
+
+void terminal_initialize(const struct boot_framebuffer* fb);
 void terminal_putchar(char c);
 void terminal_write(const char* data, size_t size);
 void terminal_writestring(const char* data);

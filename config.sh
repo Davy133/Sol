@@ -3,6 +3,7 @@ PROJECTS="libc kernel"
 
 export MAKE=${MAKE:-make}
 export HOST=${HOST:-$(./default-host.sh)}
+export BOOTLOADER=${BOOTLOADER:-limine}
 
 export AR=${HOST}-ar
 export AS=${HOST}-as
