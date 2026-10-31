@@ -5,15 +5,19 @@
 
 #define GDT_ENTRIES 7
 
-typedef struct {
-    uint16_t limit_low;     // Bits 0-15 do limit
-    uint16_t base_low;      // Bits 0-15 da base
-    uint8_t  base_mid;      // Bits 16-23 da base
-    uint8_t  access;        // Access byte (P, DPL, S, Type)
-    uint8_t  granularity;   // Flags + limit high (G, D/B, AVL + limit 16-19)
-    uint8_t  base_high;     // Bits 24-31 da base
-} __attribute__((packed)) gdt_entry_t;
+#define TSS_STACK_SIZE 16384
 
+/* Value for the IDT gate's ist field; IST numbers start at 1. */
+#define TSS_IST_DOUBLE_FAULT 1
+
+typedef struct {
+    uint16_t limit_low;
+    uint16_t base_low;
+    uint8_t  base_mid;
+    uint8_t  access;
+    uint8_t  flags;
+    uint8_t  base_high;
+} __attribute__((packed)) gdt_entry_t;
 
 typedef struct {
     uint16_t limit;
@@ -44,7 +48,7 @@ typedef struct {
 } __attribute__((packed)) tss_entry_t;
 
 void gdt_init(void);
-void gdt_set_gate(int num, uint64_t base, uint32_t limit, uint8_t access, uint8_t gran);
+void gdt_set_gate(uint32_t num, uint64_t base, uint32_t limit, uint8_t access, uint8_t gran);
 
 void tss_set_kernel_stack(uint64_t stack);
 
