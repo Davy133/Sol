@@ -1,4 +1,5 @@
 #include <stdbool.h>
+#include <string.h>
 #include <kernel/panic.h>
 #include <kernel/pit.h>
 #include <kernel/serial.h>
@@ -8,6 +9,16 @@
 #define GLYPH_SIZE      16      /* 8x8 font drawn at twice its size */
 #define GLYPH_SCALE     2
 #define MARGIN          2       /* In characters */
+
+/* The blinking box around the title, in characters; the report starts below it. */
+#define BOX_TOP         1
+#define BOX_TEXT_ROW    2
+#define BOX_BOTTOM      6
+#define BOX_THICKNESS   6       /* In pixels */
+
+#define TICK_MS         80
+#define BLINK_TICKS     5       /* The box changes every 400 ms */
+#define BEEP_TICKS      6       /* Half on, half off, so 3 beeps */
 
 static struct boot_framebuffer screen;
 static volatile uint32_t *pixels;
@@ -54,6 +65,29 @@ static void clear_screen(void)
             pixels[y * pitch + x] = background;
 }
 
+static void fill_rect(size_t left, size_t top, size_t width, size_t height, uint32_t value)
+{
+    for (size_t y = top; y < top + height; y++)
+        for (size_t x = left; x < left + width; x++)
+            pixels[y * pitch + x] = value;
+}
+
+static void draw_box(uint32_t value)
+{
+    if (pixels == NULL)
+        return;
+
+    size_t left = GLYPH_SIZE;
+    size_t top = BOX_TOP * GLYPH_SIZE;
+    size_t width = screen.width - 2 * GLYPH_SIZE;
+    size_t height = (BOX_BOTTOM - BOX_TOP) * GLYPH_SIZE;
+
+    fill_rect(left, top, width, BOX_THICKNESS, value);
+    fill_rect(left, top + height - BOX_THICKNESS, width, BOX_THICKNESS, value);
+    fill_rect(left, top, BOX_THICKNESS, height, value);
+    fill_rect(left + width - BOX_THICKNESS, top, BOX_THICKNESS, height, value);
+}
+
 static void draw_char(unsigned char c)
 {
     const unsigned char *glyph = font8x8_basic[c < 128 ? c : '?'];
@@ -96,6 +130,16 @@ void panic_put_string(const char *str)
         panic_put_char(*str++);
 }
 
+static void put_centered(const char *str)
+{
+    size_t length = strlen(str);
+
+    if (length < columns)
+        column = (columns - length) / 2;
+    panic_put_string(str);
+    panic_put_char('\n');
+}
+
 void panic_put_hex(uint64_t value)
 {
     panic_put_string("0x");
@@ -134,16 +178,16 @@ void panic_begin(void)
     panicking = true;
 
     clear_screen();
-    column = MARGIN;
-    row = 1;
+    draw_box(foreground);
+    row = BOX_TEXT_ROW;
 
-    uint32_t text = foreground;
-    foreground = background;
-    background = text;
-    panic_put_string(" *** KERNEL PANIC *** ");
-    background = foreground;
-    foreground = text;
-    panic_put_string("\n\nSolanum had an unexpected error and had to halt. Debug information follows.\n\n");
+    put_centered("*** KERNEL PANIC ***");
+    put_centered("Solanum had an unexpected error and had to halt.");
+    put_centered("Debug information follows.");
+
+    column = MARGIN;
+    row = BOX_BOTTOM + 1;
+    panic_put_char('\n');
 }
 
 void panic_end(uint64_t frame)
@@ -153,7 +197,15 @@ void panic_end(uint64_t frame)
     panic_put_string(" s\n");
 
     arch_stack_trace(frame);
-    arch_halt();
+
+    arch_alarm_start();
+    for (unsigned int tick = 0;; tick++) {
+        if (tick % BLINK_TICKS == 0)
+            draw_box(tick / BLINK_TICKS % 2 == 0 ? foreground : background);
+
+        arch_alarm_sound(tick < BEEP_TICKS && tick % 2 == 0);
+        arch_alarm_wait(TICK_MS);
+    }
 }
 
 void panic_at(const char *file, int line, const char *message)

@@ -1,6 +1,7 @@
 #ifndef _KERNEL_PANIC_H
 #define _KERNEL_PANIC_H
 
+#include <stdbool.h>
 #include <kernel/boot.h>
 
 #define panic(message) panic_at(__FILE__, __LINE__, (message))
@@ -23,5 +24,10 @@ void panic_put_register(const char* name, uint64_t value);
 /* Provided by the architecture. */
 void arch_dump_registers(uint64_t pc);
 void arch_stack_trace(uint64_t frame);
+
+/* Timing and sound for the panic screen, which runs with interrupts off. */
+void arch_alarm_start(void);
+void arch_alarm_sound(bool on);
+void arch_alarm_wait(unsigned int ms);
 
 #endif
