@@ -1,3 +1,4 @@
+#include <asm/layout.h>
 #include <asm/paging.h>
 #include <cpuid.h>
 #include <kernel/panic.h>
@@ -182,6 +183,9 @@ void paging_init(struct boot_info *info)
     uint64_t *pml4 = phys_to_virt(pml4_phys);
 
     kernel_pml4 = pml4;
+
+    /* The heap's PML4 entry must exist before anything copies this PML4. */
+    next_table(pml4, (HEAP_START >> 39) & (PAGE_ENTRIES - 1), 0);
 
     map_kernel_segment(pml4, __kernel_start, __text_start, PAGE_PRESENT | PAGE_WRITE | no_execute);
     map_kernel_segment(pml4, __text_start, __rodata_start, PAGE_PRESENT);

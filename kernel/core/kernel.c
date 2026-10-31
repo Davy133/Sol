@@ -3,7 +3,7 @@
 #include <kernel/boot.h>
 #include <kernel/tty.h>
 #include <kernel/serial.h>
-
+#include <kernel/heap.h>
 void kernel_main(const struct boot_info* info) {
     terminal_initialize(&info->framebuffer);
     printf("Hello, kernel World!\n");
@@ -16,6 +16,7 @@ void kernel_main(const struct boot_info* info) {
         if (info->memory_regions[i].type == BOOT_MEMORY_USABLE)
             usable += info->memory_regions[i].length;
     }
+
     serial_printf("Usable memory: %lu MiB, physical memory mapped at 0x%lx\n",
                   usable / (1024 * 1024), info->physmap_offset);
 }
