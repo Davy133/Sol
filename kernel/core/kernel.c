@@ -4,7 +4,6 @@
 #include <kernel/tty.h>
 #include <kernel/serial.h>
 
-
 void kernel_main(const struct boot_info* info) {
     terminal_initialize(&info->framebuffer);
     printf("Hello, kernel World!\n");

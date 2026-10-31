@@ -25,6 +25,12 @@ static volatile struct limine_framebuffer_request framebuffer_request = {
     .revision = 0
 };
 
+__attribute__((used, section(".limine_requests")))
+static volatile struct limine_executable_address_request executable_address_request = {
+    .id = LIMINE_EXECUTABLE_ADDRESS_REQUEST_ID,
+    .revision = 0
+};
+
 __attribute__((used, section(".limine_requests_start")))
 static volatile uint64_t limine_requests_start_marker[] = LIMINE_REQUESTS_START_MARKER;
 
@@ -58,6 +64,8 @@ static enum boot_memory_type convert_memory_type(uint64_t type) {
             return BOOT_MEMORY_KERNEL;
         case LIMINE_MEMMAP_FRAMEBUFFER:
             return BOOT_MEMORY_FRAMEBUFFER;
+        case LIMINE_MEMMAP_RESERVED_MAPPED:
+            return BOOT_MEMORY_RESERVED_MAPPED;
         default:
             return BOOT_MEMORY_RESERVED;
     }
@@ -111,8 +119,11 @@ void _start(void) {
         boot_fail("base revision not supported");
     if (hhdm_request.response == NULL)
         boot_fail("no higher half direct map");
+    if (executable_address_request.response == NULL)
+        boot_fail("no kernel address");
 
     boot_info.physmap_offset = hhdm_request.response->offset;
+    boot_info.kernel_physical_base = executable_address_request.response->physical_base;
     read_memory_map();
     read_framebuffer();
 

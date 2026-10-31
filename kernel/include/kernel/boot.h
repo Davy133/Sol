@@ -24,6 +24,7 @@ enum boot_memory_type {
 	BOOT_MEMORY_BOOTLOADER_RECLAIMABLE,
 	BOOT_MEMORY_KERNEL,
 	BOOT_MEMORY_FRAMEBUFFER,
+	BOOT_MEMORY_RESERVED_MAPPED,
 };
 
 struct boot_memory_region {
@@ -50,13 +51,15 @@ struct boot_framebuffer {
 struct boot_info {
 	/* Virtual address of physical address 0. */
 	uint64_t physmap_offset;
+	/* Physical address of __kernel_start; the image is physically contiguous. */
+	uint64_t kernel_physical_base;
 	struct boot_memory_region memory_regions[BOOT_MAX_MEMORY_REGIONS];
 	size_t memory_region_count;
 	struct boot_framebuffer framebuffer;
 };
 
 __attribute__((__noreturn__))
-void arch_start(const struct boot_info* info);
+void arch_start(struct boot_info* info);
 __attribute__((__noreturn__))
 void arch_halt(void);
 

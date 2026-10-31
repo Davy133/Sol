@@ -3,7 +3,7 @@ OUTPUT_FORMAT(elf64-x86-64)
 /* Limine jumps to the symbol designated at the entry point. */
 ENTRY(_start)
 
-/* Each segment gets its own permissions in the page tables Limine builds. */
+/* Each segment gets its own permissions; paging_init() needs the symbols below. */
 PHDRS
 {
 	limine_requests PT_LOAD FLAGS(0x06); /* Read, write */
@@ -17,6 +17,7 @@ SECTIONS
 	/* The Limine protocol loads the kernel in the topmost 2 GiB of the address
 	   space, which is also what -mcmodel=kernel expects. */
 	. = 0xffffffff80000000;
+	__kernel_start = .;
 
 	.limine_requests :
 	{
@@ -27,6 +28,7 @@ SECTIONS
 
 	. = ALIGN(CONSTANT(MAXPAGESIZE));
 
+	__text_start = .;
 	.text :
 	{
 		*(.text .text.*)
@@ -35,6 +37,7 @@ SECTIONS
 	. = ALIGN(CONSTANT(MAXPAGESIZE));
 
 	/* Read-only data. */
+	__rodata_start = .;
 	.rodata :
 	{
 		*(.rodata .rodata.*)
@@ -43,6 +46,7 @@ SECTIONS
 	. = ALIGN(CONSTANT(MAXPAGESIZE));
 
 	/* Read-write data (initialized) */
+	__data_start = .;
 	.data :
 	{
 		*(.data .data.*)
@@ -55,6 +59,8 @@ SECTIONS
 		*(COMMON)
 		*(.bss .bss.*)
 	} :data
+
+	__kernel_end = .;
 
 	/DISCARD/ :
 	{
