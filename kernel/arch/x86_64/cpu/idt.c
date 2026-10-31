@@ -43,19 +43,21 @@ static const char *exception_messages[] = {
     "Reserved",
 };
 
-void idt_set_gate(uint8_t num, uint32_t base, uint16_t selector, uint8_t flags)
+void idt_set_gate(uint8_t num, uint64_t base, uint16_t selector, uint8_t flags)
 {
     idt[num].offset_low  = base & 0xFFFF;
-    idt[num].offset_high = (base >> 16) & 0xFFFF;
+    idt[num].offset_mid  = (base >> 16) & 0xFFFF;
+    idt[num].offset_high = (base >> 32) & 0xFFFFFFFF;
     idt[num].selector    = selector;
-    idt[num].reserved    = 0;
+    idt[num].ist         = 0;
     idt[num].flags       = flags;
+    idt[num].reserved    = 0;
 }
 
 void idt_init(void)
 {
     idtp.limit = (sizeof(idt_entry_t) * IDT_ENTRIES) - 1;
-    idtp.base  = (uint32_t)&idt;
+    idtp.base  = (uint64_t)&idt;
 
     for (int i = 0; i < IDT_ENTRIES; i++)
         idt_set_gate(i, 0, 0, 0);
@@ -70,7 +72,7 @@ void idt_init(void)
     for (int i = 0; i < 32; i++)
     {
         uint8_t flags = IDT_INTERRUPT_GATE;
-        idt_set_gate(i, (uint32_t)isr_stubs[i], GDT_KERNEL_CODE << 3, flags);
+        idt_set_gate(i, (uint64_t)isr_stubs[i], GDT_KERNEL_CODE << 3, flags);
     }
 
     /* Remap PIC and register IRQ gates (32–47) */
@@ -82,7 +84,7 @@ void idt_init(void)
     };
 
     for (int i = 0; i < 16; i++)
-        idt_set_gate(32 + i, (uint32_t)irq_stubs[i], GDT_KERNEL_CODE << 3, IDT_INTERRUPT_GATE);
+        idt_set_gate(32 + i, (uint64_t)irq_stubs[i], GDT_KERNEL_CODE << 3, IDT_INTERRUPT_GATE);
 
     idt_flush(&idtp);
 }
@@ -96,17 +98,24 @@ void isr_handler(registers_t *regs)
 {
     if (regs->int_no < 32)
     {
-        printf("EXCEPTION: %s (int %d, err %d)\n",
+        printf("EXCEPTION: %s (int %ld, err %ld)\n",
                exception_messages[regs->int_no],
                regs->int_no,
                regs->err_code);
 
-        printf("EAX: %08x EBX: %08x ECX: %08x EDX: %08x\n",
-               regs->eax, regs->ebx, regs->ecx, regs->edx);
-        printf("ESI: %08x EDI: %08x EBP: %08x ESP: %08x\n",
-               regs->esi, regs->edi, regs->ebp, regs->esp);
-        printf("EIP: %08x CS: %08x EFLAGS: %08x\n",
-               regs->eip, regs->cs, regs->eflags);
+        printf("RAX: %016lx RBX: %016lx RCX: %016lx\n",
+               regs->rax, regs->rbx, regs->rcx);
+        printf("RDX: %016lx RSI: %016lx RDI: %016lx\n",
+               regs->rdx, regs->rsi, regs->rdi);
+        printf("RBP: %016lx RSP: %016lx R8:  %016lx\n",
+               regs->rbp, regs->rsp, regs->r8);
+        printf("R9:  %016lx R10: %016lx R11: %016lx\n",
+               regs->r9, regs->r10, regs->r11);
+        printf("R12: %016lx R13: %016lx R14: %016lx\n",
+               regs->r12, regs->r13, regs->r14);
+        printf("R15: %016lx\n", regs->r15);
+        printf("RIP: %016lx CS: %016lx RFLAGS: %016lx\n",
+               regs->rip, regs->cs, regs->rflags);
         for (;;);
     }
 }

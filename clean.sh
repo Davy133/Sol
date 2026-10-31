@@ -9,3 +9,4 @@ done
 rm -rf sysroot
 rm -rf isodir
 rm -rf sol.iso
+rm -rf limine-binary

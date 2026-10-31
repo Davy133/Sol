@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-#define GDT_ENTRIES 6
+#define GDT_ENTRIES 7
 
 typedef struct {
     uint16_t limit_low;     // Bits 0-15 do limit
@@ -17,40 +17,36 @@ typedef struct {
 
 typedef struct {
     uint16_t limit;
-    uint32_t base;
+    uint64_t base;
 } __attribute__((packed)) gdt_ptr_t;
 
+/* User data comes before user code because sysret derives both selectors
+   from a single base in that order. The TSS descriptor takes two entries. */
 enum gdt_selectors {
     GDT_NULL        = 0,
     GDT_KERNEL_CODE = 1,
     GDT_KERNEL_DATA = 2,
-    GDT_USER_CODE   = 3,
-    GDT_USER_DATA   = 4,
+    GDT_USER_DATA   = 3,
+    GDT_USER_CODE   = 4,
     GDT_TSS         = 5,
+    GDT_TSS_HIGH    = 6,
 };
 typedef struct {
-    uint32_t prev_tss;
-    uint32_t esp0;
-    uint32_t ss0;
-    uint32_t esp1;
-    uint32_t ss1;
-    uint32_t esp2;
-    uint32_t ss2;
-    uint32_t cr3;
-    uint32_t eip;
-    uint32_t eflags;
-    uint32_t eax, ecx, edx, ebx;
-    uint32_t esp, ebp, esi, edi;
-    uint32_t es, cs, ss, ds, fs, gs;
-    uint32_t ldt;
-    uint16_t trap;
+    uint32_t reserved0;
+    uint64_t rsp0;
+    uint64_t rsp1;
+    uint64_t rsp2;
+    uint64_t reserved1;
+    uint64_t ist[7];
+    uint64_t reserved2;
+    uint16_t reserved3;
     uint16_t iomap_base;
 } __attribute__((packed)) tss_entry_t;
 
 void gdt_init(void);
-void gdt_set_gate(int num, uint32_t base, uint32_t limit, uint8_t access, uint8_t gran);
+void gdt_set_gate(int num, uint64_t base, uint32_t limit, uint8_t access, uint8_t gran);
 
-void tss_set_kernel_stack(uint32_t stack);
+void tss_set_kernel_stack(uint64_t stack);
 
 extern void gdt_flush(gdt_ptr_t *gdtp);
 extern void tss_flush(void);
