@@ -34,6 +34,7 @@ $(KERNEL_ARCH_OBJS) \
 core/kernel.o \
 core/panic.o \
 drivers/tty.o \
+mm/pmm.o \
 
 OBJS=\
 $(KERNEL_OBJS) \

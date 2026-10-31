@@ -1,16 +1,12 @@
 #include <asm/paging.h>
 #include <cpuid.h>
 #include <kernel/panic.h>
+#include <kernel/pmm.h>
+#include <stdbool.h>
+#include <stddef.h>
 #include <string.h>
 
-#define PAGE_SIZE       4096ULL
 #define PAGE_ENTRIES    512
-
-#define PAGE_PRESENT    (1ULL << 0)
-#define PAGE_WRITE      (1ULL << 1)
-#define PAGE_PWT        (1ULL << 3)
-#define PAGE_PAT        (1ULL << 7)     /* In a 4 KiB entry */
-#define PAGE_NX         (1ULL << 63)
 #define PAGE_ADDRESS    0x000ffffffffff000ULL
 
 /* Selects PAT entry 5, write-combining in PAT_VALUE. */
@@ -29,6 +25,8 @@ extern char __kernel_start[], __text_start[], __rodata_start[], __data_start[], 
 
 static struct boot_info *boot;
 static uint64_t no_execute;
+static uint64_t *kernel_pml4;
+static bool pmm_ready;
 
 /* The map as the bootloader gave it. alloc_table() shrinks the live one, and
    the pages it removes must still be reachable through the physical map. */
@@ -51,8 +49,8 @@ static uint64_t *phys_to_virt(uint64_t address)
     return (uint64_t *)(address + boot->physmap_offset);
 }
 
-/* Taken from the region itself, so nothing later can hand these pages out. */
-static uint64_t alloc_table(void)
+/* Taken from the region itself, so the allocator never sees these pages. */
+static uint64_t alloc_boot_page(void)
 {
     for (size_t i = 0; i < boot->memory_region_count; i++) {
         struct boot_memory_region *region = &boot->memory_regions[i];
@@ -63,29 +61,70 @@ static uint64_t alloc_table(void)
         uint64_t address = region->base;
         region->base += PAGE_SIZE;
         region->length -= PAGE_SIZE;
-        memset(phys_to_virt(address), 0, PAGE_SIZE);
         return address;
     }
 
     panic("out of memory for page tables");
 }
 
-static uint64_t *next_table(uint64_t *table, size_t index)
+static uint64_t alloc_page(void)
+{
+    if (!pmm_ready)
+        return alloc_boot_page();
+
+    uint64_t address = pmm_alloc_page();
+    if (address == 0)
+        panic("out of memory for page tables");
+    return address;
+}
+
+static uint64_t alloc_table(void)
+{
+    uint64_t address = alloc_page();
+
+    memset(phys_to_virt(address), 0, PAGE_SIZE);
+    return address;
+}
+
+/* Every level has to allow user access, so PAGE_USER reaches existing tables too. */
+static uint64_t *next_table(uint64_t *table, size_t index, uint64_t user)
 {
     if (!(table[index] & PAGE_PRESENT))
         table[index] = alloc_table() | PAGE_PRESENT | PAGE_WRITE;
 
+    table[index] |= user;
     return phys_to_virt(table[index] & PAGE_ADDRESS);
 }
 
 /* Permissions live in the last level; the ones above allow everything. */
 static void map_page(uint64_t *pml4, uint64_t virt, uint64_t phys, uint64_t flags)
 {
-    uint64_t *pdpt = next_table(pml4, (virt >> 39) & (PAGE_ENTRIES - 1));
-    uint64_t *pd = next_table(pdpt, (virt >> 30) & (PAGE_ENTRIES - 1));
-    uint64_t *pt = next_table(pd, (virt >> 21) & (PAGE_ENTRIES - 1));
+    uint64_t user = flags & PAGE_USER;
+    uint64_t *pdpt = next_table(pml4, (virt >> 39) & (PAGE_ENTRIES - 1), user);
+    uint64_t *pd = next_table(pdpt, (virt >> 30) & (PAGE_ENTRIES - 1), user);
+    uint64_t *pt = next_table(pd, (virt >> 21) & (PAGE_ENTRIES - 1), user);
+    uint64_t *entry = &pt[(virt >> 12) & (PAGE_ENTRIES - 1)];
+    bool replaced = *entry & PAGE_PRESENT;
 
-    pt[(virt >> 12) & (PAGE_ENTRIES - 1)] = phys | flags;
+    *entry = phys | flags;
+    if (replaced)
+        asm volatile("invlpg (%0)" : : "r"(virt) : "memory");
+}
+
+/* NULL when a level on the way to virt does not exist. */
+static uint64_t *find_entry(uint64_t *pml4, uint64_t virt)
+{
+    uint64_t *table = pml4;
+
+    for (int shift = 39; shift > 12; shift -= 9) {
+        uint64_t entry = table[(virt >> shift) & (PAGE_ENTRIES - 1)];
+
+        if (!(entry & PAGE_PRESENT))
+            return NULL;
+        table = phys_to_virt(entry & PAGE_ADDRESS);
+    }
+
+    return &table[(virt >> 12) & (PAGE_ENTRIES - 1)];
 }
 
 static void map_range(uint64_t *pml4, uint64_t virt, uint64_t phys, uint64_t length, uint64_t flags)
@@ -142,6 +181,8 @@ void paging_init(struct boot_info *info)
     uint64_t pml4_phys = alloc_table();
     uint64_t *pml4 = phys_to_virt(pml4_phys);
 
+    kernel_pml4 = pml4;
+
     map_kernel_segment(pml4, __kernel_start, __text_start, PAGE_PRESENT | PAGE_WRITE | no_execute);
     map_kernel_segment(pml4, __text_start, __rodata_start, PAGE_PRESENT);
     map_kernel_segment(pml4, __rodata_start, __data_start, PAGE_PRESENT | no_execute);
@@ -151,4 +192,27 @@ void paging_init(struct boot_info *info)
     map_physical_memory(pml4);
 
     asm volatile("mov %0, %%cr3" : : "r"(pml4_phys) : "memory");
+
+    /* Last, so the bitmap sits past the tables and sees the final memory map. */
+    pmm_init(info);
+    pmm_ready = true;
+}
+
+void paging_map_page(uint64_t virt, uint64_t phys, uint64_t flags)
+{
+    if (!no_execute)
+        flags &= ~PAGE_NX;
+
+    map_page(kernel_pml4, virt, phys, flags | PAGE_PRESENT);
+}
+
+void paging_unmap_page(uint64_t virt)
+{
+    uint64_t *entry = find_entry(kernel_pml4, virt);
+
+    if (entry == NULL || !(*entry & PAGE_PRESENT))
+        return;
+
+    *entry = 0;
+    asm volatile("invlpg (%0)" : : "r"(virt) : "memory");
 }
