@@ -1,6 +1,7 @@
 #ifndef _KERNEL_LOG_H
 #define _KERNEL_LOG_H
 
+#include <kernel/pit.h>
 #include <stdio.h>
 
 enum klog_level {
@@ -14,6 +15,13 @@ enum klog_level {
 #define KLOG_MIN_LEVEL KLOG_DEBUG
 
 static inline void klog_prefix(enum klog_level level) {
+    uint64_t ticks = pit_ticks();
+
+    unsigned long seconds = ticks / PIT_HZ;
+    unsigned long milliseconds = (ticks % PIT_HZ) * 1000 / PIT_HZ;
+
+    printf("[%lu.%03lu] ", seconds, milliseconds);
+
     switch (level) {
         case KLOG_DEBUG:
             printf("[DEBUG] ");

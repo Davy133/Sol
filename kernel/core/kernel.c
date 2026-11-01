@@ -4,6 +4,7 @@
 #include <kernel/tty.h>
 #include <kernel/log.h>
 
+
 void kernel_main(const struct boot_info* info) {
     terminal_initialize(&info->framebuffer);
 
