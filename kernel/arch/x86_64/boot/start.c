@@ -1,11 +1,13 @@
 #include <kernel/boot.h>
 #include <kernel/panic.h>
 #include <kernel/pit.h>
+#include <kernel/serial.h>
 
 #include "../cpu/gdt.h"
 #include "../cpu/idt.h"
 
 void arch_start(const struct boot_info* info) {
+    serial_init();
     panic_init(&info->framebuffer);
     gdt_init();
     idt_init();
