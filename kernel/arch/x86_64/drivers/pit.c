@@ -1,5 +1,6 @@
 #include <kernel/io.h>
 #include <kernel/pit.h>
+#include <kernel/log.h>
 
 #include "../cpu/idt.h"
 #include "../cpu/pic.h"
@@ -27,6 +28,8 @@ void pit_init(void) {
 
     irq_register_handler(PIT_IRQ, pit_tick);
     pic_unmask(PIT_IRQ);
+    
+    klog(KLOG_INFO, "PIT initialized at %u Hz", PIT_HZ);
 }
 
 uint64_t pit_ticks(void) {

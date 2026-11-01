@@ -3,7 +3,11 @@
 #include <stdint.h>
 #include <string.h>
 
+static int serial_available;
+
 int serial_init(void) {
+    serial_available = 0;
+
     outb(SERIAL_PORT + 1, 0x00);    // Disable all interrupts
     outb(SERIAL_PORT + 3, 0x80);    // Enable DLAB (set baud rate divisor)
     outb(SERIAL_PORT + 0, 0x03);    // Set divisor to 3 (lo byte) 38400 baud
@@ -12,7 +16,19 @@ int serial_init(void) {
     outb(SERIAL_PORT + 2, 0xC7);    // Enable FIFO, clear them, with 14-byte threshold
     outb(SERIAL_PORT + 4, 0x0B);    // IRQs enabled, RTS/DSR set
 
-    return serial_transmit_empty();
+    /*
+     * Test UART using internal loopback mode.
+     */
+    outb(SERIAL_PORT + 4, 0x1E);
+    outb(SERIAL_PORT, 0xAE);
+
+    int available = inb(SERIAL_PORT) == 0xAE;
+
+    /* Restore normal operation. */
+    outb(SERIAL_PORT + 4, 0x0B);
+
+    serial_available = available;
+    return serial_available;
 }
 
 int serial_received(void) {
@@ -29,6 +45,9 @@ int serial_transmit_empty(void) {
 }
 
 void serial_write(char a) {
+    if (!serial_available)
+        return;
+
     while (serial_transmit_empty() == 0);
     outb(SERIAL_PORT, a);
 }

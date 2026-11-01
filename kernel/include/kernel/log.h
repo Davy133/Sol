@@ -43,7 +43,8 @@ static inline void klog_prefix(enum klog_level level) {
 
 #define klog(level, ...) do {                  \
     enum klog_level _level = (level);          \
-    if (_level >= KLOG_MIN_LEVEL) {            \
+    if (_level >= KLOG_MIN_LEVEL &&            \
+        _level <= KLOG_ERROR) {                \
         klog_prefix(_level);                   \
         printf(__VA_ARGS__);                   \
         putchar('\n');                         \

@@ -31,12 +31,13 @@ static uint32_t terminal_pixel(const struct boot_framebuffer* fb, uint8_t gray) 
 }
 
 /* Without a 32-bit framebuffer the terminal stays off and output is dropped. */
-void terminal_initialize(const struct boot_framebuffer* fb) {
-	if (fb->address == NULL || fb->bpp != 32)
-		return;
+int terminal_initialize(const struct boot_framebuffer* fb) {
+    if (fb->address == NULL || fb->bpp != 32) {
+        return 0;
+    }
 
-	terminal_row = 0;
-	terminal_column = 0;
+    terminal_row = 0;
+    terminal_column = 0;
 	terminal_columns = fb->width / (GLYPH_SIZE * GLYPH_SCALE);
 	terminal_rows = fb->height / (GLYPH_SIZE * GLYPH_SCALE);
 	terminal_foreground = terminal_pixel(fb, 0xAA);
@@ -48,6 +49,7 @@ void terminal_initialize(const struct boot_framebuffer* fb) {
 			terminal_buffer[y * terminal_pitch + x] = terminal_background;
 		}
 	}
+    return 1;
 }
 
 static void terminal_putentryat(unsigned char c, size_t x, size_t y) {
