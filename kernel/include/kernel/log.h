@@ -1,6 +1,7 @@
 #ifndef _KERNEL_LOG_H
 #define _KERNEL_LOG_H
 
+#include <stdint.h>
 #include <kernel/pit.h>
 #include <stdio.h>
 
@@ -13,6 +14,8 @@ enum klog_level {
 
 
 #define KLOG_MIN_LEVEL KLOG_DEBUG
+uint64_t klog_lock_irqsave(void);
+void klog_unlock_irqrestore(uint64_t flags);
 
 static inline void klog_prefix(enum klog_level level) {
     uint64_t ticks = pit_ticks();
@@ -41,14 +44,16 @@ static inline void klog_prefix(enum klog_level level) {
     }
 }
 
-#define klog(level, ...) do {                  \
-    enum klog_level _level = (level);          \
-    if (_level >= KLOG_MIN_LEVEL &&            \
-        _level <= KLOG_ERROR) {                \
-        klog_prefix(_level);                   \
-        printf(__VA_ARGS__);                   \
-        putchar('\n');                         \
-    }                                          \
+#define klog(level, ...) do {                       \
+    enum klog_level _level = (level);               \
+    if (_level >= KLOG_MIN_LEVEL &&                 \
+        _level <= KLOG_ERROR) {                     \
+        uint64_t _flags = klog_lock_irqsave();      \
+        klog_prefix(_level);                        \
+        printf(__VA_ARGS__);                        \
+        putchar('\n');                              \
+        klog_unlock_irqrestore(_flags);             \
+    }                                               \
 } while (0)
 
 #endif
