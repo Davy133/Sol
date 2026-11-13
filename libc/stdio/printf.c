@@ -40,10 +40,7 @@ static unsigned long next_number(va_list* parameters, char spec, bool is_long, i
 	return is_long ? va_arg(*parameters, unsigned long) : va_arg(*parameters, unsigned int);
 }
 
-int printf(const char* restrict format, ...) {
-	va_list parameters;
-	va_start(parameters, format);
-
+static int print_formatted(const char* restrict format, va_list* parameters) {
 	int written = 0;
 
 	while (*format != '\0') {
@@ -70,7 +67,7 @@ int printf(const char* restrict format, ...) {
 
 		if (*format == 'c') {
 			format++;
-			char c = (char) va_arg(parameters, int /* char promotes to int */);
+			char c = (char) va_arg(*parameters, int /* char promotes to int */);
 			if (!maxrem) {
 				// TODO: Set errno to EOVERFLOW.
 				return -1;
@@ -80,7 +77,7 @@ int printf(const char* restrict format, ...) {
 			written++;
 		} else if (*format == 's') {
 			format++;
-			const char* str = va_arg(parameters, const char*);
+			const char* str = va_arg(*parameters, const char*);
 			size_t len = strlen(str);
 			if (maxrem < len) {
 				// TODO: Set errno to EOVERFLOW.
@@ -105,7 +102,7 @@ int printf(const char* restrict format, ...) {
 			const char *digits = "0123456789abcdef";
 			if (spec == 'X') digits = "0123456789ABCDEF";
 			if (spec == 'x' || spec == 'X') base = 16;
-			val = next_number(&parameters, spec, is_long, &neg);
+			val = next_number(parameters, spec, is_long, &neg);
 			int idx = 31;
 			numbuf[idx] = '\0';
 			if (val == 0) numbuf[--idx] = '0';
@@ -127,7 +124,7 @@ int printf(const char* restrict format, ...) {
 			const char *digits = "0123456789abcdef";
 			if (spec == 'X') digits = "0123456789ABCDEF";
 			if (spec == 'x' || spec == 'X') base = 16;
-			val = next_number(&parameters, spec, is_long, &neg);
+			val = next_number(parameters, spec, is_long, &neg);
 			int idx = 31;
 			numbuf[idx] = '\0';
 			if (val == 0) numbuf[--idx] = '0';
@@ -151,6 +148,21 @@ int printf(const char* restrict format, ...) {
 		}
 	}
 
+	return written;
+}
+
+int vprintf(const char* restrict format, va_list arguments) {
+	va_list parameters;
+	va_copy(parameters, arguments);
+	int written = print_formatted(format, &parameters);
+	va_end(parameters);
+	return written;
+}
+
+int printf(const char* restrict format, ...) {
+	va_list parameters;
+	va_start(parameters, format);
+	int written = vprintf(format, parameters);
 	va_end(parameters);
 	return written;
 }
