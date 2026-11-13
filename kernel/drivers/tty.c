@@ -31,9 +31,10 @@ static uint32_t terminal_pixel(const struct boot_framebuffer* fb, uint8_t gray) 
 }
 
 /* Without a 32-bit framebuffer the terminal stays off and output is dropped. */
-void terminal_initialize(const struct boot_framebuffer* fb) {
-	if (fb->address == NULL || fb->bpp != 32)
-		return;
+int terminal_initialize(const struct boot_framebuffer* fb) {
+	if (fb->address == NULL || fb->bpp != 32) {
+		return 0;
+	}
 
 	terminal_row = 0;
 	terminal_column = 0;
@@ -48,6 +49,7 @@ void terminal_initialize(const struct boot_framebuffer* fb) {
 			terminal_buffer[y * terminal_pitch + x] = terminal_background;
 		}
 	}
+	return 1;
 }
 
 static void terminal_putentryat(unsigned char c, size_t x, size_t y) {
@@ -65,10 +67,36 @@ static void terminal_putentryat(unsigned char c, size_t x, size_t y) {
 	}
 }
 
+
+static void terminal_scroll(void) {
+	if (terminal_rows == 0 || terminal_columns == 0)
+		return;
+
+	const size_t cell_height = GLYPH_SIZE * GLYPH_SCALE;
+	const size_t cell_width = GLYPH_SIZE * GLYPH_SCALE;
+	const size_t terminal_height = terminal_rows * cell_height;
+	const size_t terminal_width = terminal_columns * cell_width;
+
+	for (size_t y = 0; y < terminal_height - cell_height; y++) {
+		for (size_t x = 0; x < terminal_width; x++) {
+			terminal_buffer[y * terminal_pitch + x] =
+				terminal_buffer[(y + cell_height) * terminal_pitch + x];
+		}
+	}
+
+	for (size_t y = terminal_height - cell_height; y < terminal_height; y++) {
+		for (size_t x = 0; x < terminal_width; x++) {
+			terminal_buffer[y * terminal_pitch + x] = terminal_background;
+		}
+	}
+}
+
+
 void terminal_putchar(char c) {
 	unsigned char uc = c;
-	if (terminal_buffer == NULL)
+	if (terminal_buffer == NULL || terminal_rows == 0 || terminal_columns == 0)
 		return;
+
 	if (c == '\n') {
 		terminal_column = 0;
 		terminal_row++;
@@ -88,7 +116,8 @@ void terminal_putchar(char c) {
 		terminal_row++;
 	}
 	if (terminal_row >= terminal_rows) {
-		terminal_row = 0;
+		terminal_scroll();
+		terminal_row = terminal_rows - 1;
 	}
 }
 

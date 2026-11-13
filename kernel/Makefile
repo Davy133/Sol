@@ -32,6 +32,7 @@ LIBS:=$(LIBS) $(KERNEL_ARCH_LIBS)
 KERNEL_OBJS=\
 $(KERNEL_ARCH_OBJS) \
 core/kernel.o \
+core/log.o \
 core/panic.o \
 drivers/tty.o \
 mm/heap.o \
