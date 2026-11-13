@@ -1,0 +1,11 @@
+--target=x86_64-elf
+-std=gnu23
+-ffreestanding
+-mcmodel=kernel
+-mno-red-zone
+-D__is_kernel
+-D__is_libc
+-D__is_libk
+-Ikernel/include
+-Ikernel/arch/x86_64/include
+-Ilibc/include

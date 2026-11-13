@@ -10,6 +10,10 @@
 static const size_t GLYPH_SIZE = 8;
 static const size_t GLYPH_SCALE = 2;
 
+/* Fits 4K at the current glyph size; larger screens use the top-left part. */
+#define TERMINAL_MAX_ROWS 160
+#define TERMINAL_MAX_COLUMNS 256
+
 static size_t terminal_row;
 static size_t terminal_column;
 static size_t terminal_rows;
@@ -18,6 +22,12 @@ static uint32_t terminal_foreground;
 static uint32_t terminal_background;
 static volatile uint32_t* terminal_buffer;
 static size_t terminal_pitch;
+
+/*
+ * What each cell currently shows, so scrolling can redraw from memory
+ * instead of reading the framebuffer back, which is slow on real hardware.
+ */
+static unsigned char terminal_cells[TERMINAL_MAX_ROWS][TERMINAL_MAX_COLUMNS];
 
 static uint32_t terminal_channel(uint8_t value, uint8_t size, uint8_t shift) {
 	uint64_t max = ((uint64_t) 1 << size) - 1;
@@ -31,14 +41,20 @@ static uint32_t terminal_pixel(const struct boot_framebuffer* fb, uint8_t gray) 
 }
 
 /* Without a 32-bit framebuffer the terminal stays off and output is dropped. */
-void terminal_initialize(const struct boot_framebuffer* fb) {
-	if (fb->address == NULL || fb->bpp != 32)
-		return;
+int terminal_initialize(const struct boot_framebuffer* fb) {
+	if (fb->address == NULL || fb->bpp != 32) {
+		return 0;
+	}
 
 	terminal_row = 0;
 	terminal_column = 0;
 	terminal_columns = fb->width / (GLYPH_SIZE * GLYPH_SCALE);
 	terminal_rows = fb->height / (GLYPH_SIZE * GLYPH_SCALE);
+	if (terminal_columns > TERMINAL_MAX_COLUMNS)
+		terminal_columns = TERMINAL_MAX_COLUMNS;
+	if (terminal_rows > TERMINAL_MAX_ROWS)
+		terminal_rows = TERMINAL_MAX_ROWS;
+	memset(terminal_cells, ' ', sizeof(terminal_cells));
 	terminal_foreground = terminal_pixel(fb, 0xAA);
 	terminal_background = terminal_pixel(fb, 0x00);
 	terminal_pitch = fb->pitch / sizeof(uint32_t);
@@ -48,12 +64,15 @@ void terminal_initialize(const struct boot_framebuffer* fb) {
 			terminal_buffer[y * terminal_pitch + x] = terminal_background;
 		}
 	}
+	return 1;
 }
 
 static void terminal_putentryat(unsigned char c, size_t x, size_t y) {
 	const unsigned char* glyph = font8x8_basic[c < 128 ? c : '?'];
 	const size_t left = x * GLYPH_SIZE * GLYPH_SCALE;
 	const size_t top = y * GLYPH_SIZE * GLYPH_SCALE;
+
+	terminal_cells[y][x] = c;
 
 	for (size_t row = 0; row < GLYPH_SIZE * GLYPH_SCALE; row++) {
 		const unsigned char bits = glyph[row / GLYPH_SCALE];
@@ -65,10 +84,28 @@ static void terminal_putentryat(unsigned char c, size_t x, size_t y) {
 	}
 }
 
+/* Moves every row up by one and redraws only the cells that changed. */
+static void terminal_scroll(void) {
+	const size_t last = terminal_rows - 1;
+
+	for (size_t y = 0; y < last; y++) {
+		for (size_t x = 0; x < terminal_columns; x++) {
+			if (terminal_cells[y][x] != terminal_cells[y + 1][x])
+				terminal_putentryat(terminal_cells[y + 1][x], x, y);
+		}
+	}
+
+	for (size_t x = 0; x < terminal_columns; x++) {
+		if (terminal_cells[last][x] != ' ')
+			terminal_putentryat(' ', x, last);
+	}
+}
+
 void terminal_putchar(char c) {
 	unsigned char uc = c;
-	if (terminal_buffer == NULL)
+	if (terminal_buffer == NULL || terminal_rows == 0 || terminal_columns == 0)
 		return;
+
 	if (c == '\n') {
 		terminal_column = 0;
 		terminal_row++;
@@ -88,7 +125,8 @@ void terminal_putchar(char c) {
 		terminal_row++;
 	}
 	if (terminal_row >= terminal_rows) {
-		terminal_row = 0;
+		terminal_scroll();
+		terminal_row = terminal_rows - 1;
 	}
 }
 

@@ -1,8 +1,8 @@
+#include <asm/idt.h>
+#include <asm/pic.h>
 #include <kernel/io.h>
 #include <kernel/pit.h>
-
-#include "../cpu/idt.h"
-#include "../cpu/pic.h"
+#include <kernel/log.h>
 
 #define PIT_CHANNEL0    0x40
 #define PIT_COMMAND     0x43
@@ -27,6 +27,8 @@ void pit_init(void) {
 
     irq_register_handler(PIT_IRQ, pit_tick);
     pic_unmask(PIT_IRQ);
+
+    klog(KLOG_INFO, "PIT initialized at %u Hz", PIT_HZ);
 }
 
 uint64_t pit_ticks(void) {
