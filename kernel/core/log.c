@@ -23,8 +23,8 @@ static struct klog_entry log_buffer[KLOG_BUFFER_CAPACITY];
 static size_t log_start;
 static size_t log_count;
 
-static enum klog_level terminal_min_level = KLOG_DEBUG;
-static enum klog_level serial_min_level = KLOG_DEBUG;
+static const enum klog_level terminal_min_level = KLOG_DEBUG;
+static const enum klog_level serial_min_level = KLOG_DEBUG;
 
 static struct klog_entry* active_entry;
 static size_t active_length;
@@ -47,44 +47,6 @@ static uint64_t klog_lock_irqsave(void) {
 static void klog_unlock_irqrestore(uint64_t flags) {
     __atomic_store_n(&log_lock, 0, __ATOMIC_RELEASE);
     irq_restore(flags);
-}
-
-bool klog_set_terminal_level(enum klog_level level) {
-    if ((unsigned int)level > KLOG_ERROR)
-        return false;
-
-    uint64_t flags = klog_lock_irqsave();
-    terminal_min_level = level;
-    klog_unlock_irqrestore(flags);
-
-    return true;
-}
-
-bool klog_set_serial_level(enum klog_level level) {
-    if ((unsigned int)level > KLOG_ERROR)
-        return false;
-
-    uint64_t flags = klog_lock_irqsave();
-    serial_min_level = level;
-    klog_unlock_irqrestore(flags);
-
-    return true;
-}
-
-enum klog_level klog_get_terminal_level(void) {
-    uint64_t flags = klog_lock_irqsave();
-    enum klog_level level = terminal_min_level;
-    klog_unlock_irqrestore(flags);
-
-    return level;
-}
-
-enum klog_level klog_get_serial_level(void) {
-    uint64_t flags = klog_lock_irqsave();
-    enum klog_level level = serial_min_level;
-    klog_unlock_irqrestore(flags);
-
-    return level;
 }
 
 static void klog_begin(enum klog_level level) {

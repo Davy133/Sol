@@ -39,15 +39,6 @@ void klog(enum klog_level level, const char* format, ...)
     __attribute__((format(printf, 2, 3)));
 
 /*
- * Output destination severity configuration.
- */
-bool klog_set_terminal_level(enum klog_level level);
-bool klog_set_serial_level(enum klog_level level);
-
-enum klog_level klog_get_terminal_level(void);
-enum klog_level klog_get_serial_level(void);
-
-/*
  * Circular history access.
  *
  * Returns the number of entries currently stored.
