@@ -1,7 +1,7 @@
 #ifndef SOL_H
 #define SOL_H
 
-/* System calls; numbers and meaning match kernel/core/syscall.c. */
+/* Must match kernel/core/syscall.c. */
 #define SYS_EXIT    0
 #define SYS_WRITE   1
 #define SYS_READ    2
@@ -49,7 +49,6 @@ static inline int sys_close(int fd)
     return (int)syscall3(SYS_CLOSE, fd, 0, 0);
 }
 
-/* argv ends with a NULL entry. Returns the process id, or -1. */
 static inline long sys_spawn(const char *path, char *const argv[])
 {
     return syscall3(SYS_SPAWN, (long)path, (long)argv, 0);
@@ -60,7 +59,6 @@ static inline long sys_wait(long id)
     return syscall3(SYS_WAIT, id, 0, 0);
 }
 
-/* Writes the index-th initrd path into buffer; -1 past the last one. */
 static inline long sys_list(long index, char *buffer, unsigned long length)
 {
     return syscall3(SYS_LIST, index, (long)buffer, (long)length);
@@ -94,7 +92,7 @@ static inline int equal(const char *a, const char *b)
     return *a == *b;
 }
 
-/* What follows prefix in s, or 0 when s does not start with it. */
+/* 0 when s does not start with prefix. */
 static inline const char *skip_prefix(const char *s, const char *prefix)
 {
     while (*prefix != '\0')

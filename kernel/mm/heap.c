@@ -12,8 +12,7 @@
 #define MAGIC_USED      0x5553454455534544ULL
 #define MAGIC_FREE      0x4652454546524545ULL
 
-/* Sits right before the memory it describes, so its size keeps that aligned.
-   The list follows address order and covers the whole heap without gaps. */
+/* Header before each block; the list is in address order, with no gaps. */
 struct heap_block {
     uint64_t magic;
     size_t size;                /* Not counting this header */
@@ -46,7 +45,6 @@ static bool map_heap_page(uint64_t virt)
     return false;
 }
 
-/* Returns a free block of at least size bytes at the end of the heap, or NULL. */
 static struct heap_block *grow_heap(size_t size)
 {
     uint64_t length = (size + sizeof(struct heap_block) + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
@@ -88,7 +86,6 @@ static struct heap_block *grow_heap(size_t size)
     return block;
 }
 
-/* Gives what block does not need back as a free block, if it fits one. */
 static void split_block(struct heap_block *block, size_t size)
 {
     if (block->size < size + sizeof(struct heap_block) + HEAP_ALIGN)
@@ -110,7 +107,6 @@ static void split_block(struct heap_block *block, size_t size)
     block->size = size;
 }
 
-/* Absorbs the block right after this one. */
 static void merge_with_next(struct heap_block *block)
 {
     struct heap_block *next = block->next;
@@ -151,8 +147,7 @@ static void *heap_alloc(size_t size)
     return block + 1;
 }
 
-/* Keeps HEAP_GROW_MIN of free tail mapped, so alternating kmalloc() and kfree()
-   at the end does not map and unmap pages every time. */
+/* Keeps some free tail mapped, to avoid map/unmap churn. */
 static void shrink_heap(void)
 {
     struct heap_block *block = last_block;
@@ -194,7 +189,7 @@ void kfree(void *pointer)
     if (block->magic != MAGIC_USED)
         panic("bad pointer freed");
 
-    /* A write past the end of this block lands on the next header. */
+    /* Catches writes past the end of this block. */
     if (block->next != NULL)
         check_block(block->next);
 
@@ -209,8 +204,6 @@ void kfree(void *pointer)
     irq_restore(flags);
 }
 
-/* Runs once at boot: exercises split, merge and reuse, running out of memory,
-   and the page allocator. */
 void heap_selftest(void)
 {
     void *a = kmalloc(100);
@@ -220,7 +213,6 @@ void heap_selftest(void)
     if (a == NULL || b == NULL || c == NULL || a == b || b == c || (uint64_t)a % HEAP_ALIGN != 0)
         panic("heap self-test: bad allocation");
 
-    /* a and b merge into one block, which the next allocation must reuse. */
     kfree(b);
     kfree(a);
     if (kmalloc(300) != a)
@@ -237,8 +229,7 @@ void heap_selftest(void)
     if (kmalloc((pages + 1) * PAGE_SIZE) != NULL || pmm_free_page_count() != pages)
         panic("heap self-test: allocated more memory than there is");
 
-    /* The data pages fit but the tables they need do not, so growth fails halfway.
-       Only the tables made before that may stay. */
+    /* Data pages fit but their page tables don't, so growth fails halfway. */
     if (kmalloc(pages * PAGE_SIZE - sizeof(struct heap_block)) != NULL)
         panic("heap self-test: allocated the memory page tables needed");
     if (heap_end != end || pages - pmm_free_page_count() > pages / 256 + 4)
@@ -246,7 +237,6 @@ void heap_selftest(void)
     if (first_block != last_block || first_block->magic != MAGIC_FREE)
         panic("heap self-test: failed growth changed the heap");
 
-    /* Free pages plus heap pages stays the same while the heap grows and shrinks. */
     pages = pmm_free_page_count();
     void *big = kmalloc(1024 * 1024);
 

@@ -6,12 +6,11 @@ PREFIX?=/usr/local
 EXEC_PREFIX?=$(PREFIX)
 BOOTDIR?=$(EXEC_PREFIX)/boot
 
-# shortcut: general registers only, as task switches do not save SSE state yet.
+# shortcut: no SSE until task switches save it.
 CFLAGS:=$(CFLAGS) -ffreestanding -Wall -Wextra -mgeneral-regs-only
 LDFLAGS:=$(LDFLAGS) -nostdlib -static -Wl,-z,noexecstack -Wl,-Ttext-segment=0x400000 \
 -Wl,-z,max-page-size=0x1000 -Wl,-z,separate-code
 
-# The initrd's layout: root/bin/sh is the archive's bin/sh.
 PROGRAMS=\
 root/bin/sh \
 root/bin/ls \
@@ -26,9 +25,8 @@ root/test/fault_code \
 
 all: initrd.tar
 
-# Fixed owner and order, so the archive does not depend on who built it.
 initrd.tar: $(PROGRAMS) root/etc/motd
-	tar --format=ustar --owner=0 --group=0 --numeric-owner --sort=name -cf $@ -C root bin etc test
+	tar --format=ustar --owner=0 --group=0 --numeric-owner -cf $@ -C root $(sort $(PROGRAMS:root/%=%) etc/motd)
 
 crt0.o: crt0.S
 	$(CC) -c $< -o $@

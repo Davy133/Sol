@@ -5,10 +5,9 @@
 
 #define PAGE_SIZE 4096ULL
 
-/* Addresses are physical; reach them through physmap_offset. */
 void pmm_init(const struct boot_info* info);
 
-/* Returns 0 when memory runs out; page 0 is never handed out. */
+/* 0 when out of memory. */
 uint64_t pmm_alloc_page(void);
 void pmm_free_page(uint64_t address);
 

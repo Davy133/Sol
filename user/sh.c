@@ -1,4 +1,3 @@
-/* The first process the kernel starts (bin/sh in the initrd): a tiny shell. */
 #include "sol.h"
 
 #define LINE_MAX    128
@@ -6,8 +5,6 @@
 
 static char line[LINE_MAX];
 
-/* Reads a line into line, echoing keys and handling backspace as a terminal
-   in canonical mode would. */
 static void read_line(void)
 {
     unsigned long length = 0;
@@ -37,7 +34,6 @@ static void read_line(void)
     }
 }
 
-/* Splits text on spaces in place; argv ends with a NULL entry. */
 static int split(char *text, char *argv[])
 {
     int argc = 0;
@@ -55,7 +51,7 @@ static int split(char *text, char *argv[])
     return argc;
 }
 
-/* A name without a slash means bin/<name>, like a one-entry PATH. */
+/* No slash means bin/<name>. */
 static const char *program_path(const char *name, char path[LINE_MAX + 4])
 {
     unsigned long i = 0;

@@ -1,4 +1,3 @@
-# Sourced by iso.sh from the top of the tree.
 LIMINE_VERSION=12.9.6
 LIMINE_SHA256=b38aabb042b0c0f9f562b7741be3c1204838d7bbacfa78bb411c674bd5b984ee
 LIMINE_DIR=kernel/arch/x86_64/boot/limine

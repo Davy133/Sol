@@ -11,11 +11,10 @@
 #define PAGE_ENTRIES    512
 #define PAGE_ADDRESS    0x000ffffffffff000ULL
 
-/* In a page directory entry: it maps 2 MiB itself instead of pointing to a table. */
 #define PAGE_LARGE      (1ULL << 7)
 #define LARGE_PAGE_SIZE 0x200000ULL
 
-/* Selects PAT entry 5, write-combining in PAT_VALUE. */
+/* PAT entry 5: write-combining. */
 #define PAGE_WC         (PAGE_PAT | PAGE_PWT)
 
 #define MSR_PAT         0x277
@@ -29,7 +28,6 @@
 /* WB, WT, UC-, UC, WP, WC, UC-, UC: the power-on layout with WC added. */
 #define PAT_VALUE       0x0007010500070406ULL
 
-/* From the linker script. */
 extern char __kernel_start[], __text_start[], __rodata_start[], __data_start[], __kernel_end[];
 
 static struct boot_info *boot;
@@ -38,8 +36,7 @@ static uint64_t *kernel_pml4;
 static uint64_t kernel_space;
 static bool pmm_ready;
 
-/* The map as the bootloader gave it. alloc_table() shrinks the live one, and
-   the pages it removes must still be reachable through the physical map. */
+/* The memory map before alloc_boot_page() shrank it. */
 static struct boot_memory_region regions[BOOT_MAX_MEMORY_REGIONS];
 
 static uint64_t rdmsr(uint32_t msr)
@@ -59,7 +56,6 @@ static uint64_t *phys_to_virt(uint64_t address)
     return (uint64_t *)(address + boot->physmap_offset);
 }
 
-/* Taken from the region itself, so the allocator never sees these pages. */
 static uint64_t alloc_boot_page(void)
 {
     for (size_t i = 0; i < boot->memory_region_count; i++) {
@@ -85,7 +81,6 @@ static uint64_t alloc_page(void)
     return pmm_alloc_page();
 }
 
-/* 0 when memory runs out, which only happens after boot. */
 static uint64_t alloc_table(void)
 {
     uint64_t address = alloc_page();
@@ -95,7 +90,7 @@ static uint64_t alloc_table(void)
     return address;
 }
 
-/* Every level has to allow user access, so PAGE_USER reaches existing tables too. */
+/* PAGE_USER must be set at every level. */
 static uint64_t *next_table(uint64_t *table, size_t index, uint64_t user)
 {
     if (!(table[index] & PAGE_PRESENT)) {
@@ -112,8 +107,6 @@ static uint64_t *next_table(uint64_t *table, size_t index, uint64_t user)
     return phys_to_virt(table[index] & PAGE_ADDRESS);
 }
 
-/* Permissions live in the last level; the ones above allow everything. */
-/* False when a table cannot be allocated; tables made on the way stay for reuse. */
 static bool map_page(uint64_t *pml4, uint64_t virt, uint64_t phys, uint64_t flags)
 {
     uint64_t user = flags & PAGE_USER;
@@ -141,7 +134,6 @@ static void map_large_page(uint64_t *pml4, uint64_t virt, uint64_t phys, uint64_
     pd[(virt >> 21) & (PAGE_ENTRIES - 1)] = phys | flags | PAGE_LARGE;
 }
 
-/* NULL when a level on the way to virt does not exist or is a large page. */
 static uint64_t *find_entry(uint64_t *pml4, uint64_t virt)
 {
     uint64_t *table = pml4;
@@ -165,14 +157,14 @@ static void map_range(uint64_t *pml4, uint64_t virt, uint64_t phys, uint64_t len
 
 static void map_kernel_segment(uint64_t *pml4, const char *start, const char *end, uint64_t flags)
 {
-    /* Linker symbols are separate objects to C, so subtract them as integers. */
+    /* Linker symbols can't be subtracted as pointers. */
     uint64_t offset = (uint64_t)start - (uint64_t)__kernel_start;
     uint64_t length = ((uint64_t)end - (uint64_t)start + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
 
     map_range(pml4, (uint64_t)start, boot->kernel_physical_base + offset, length, flags);
 }
 
-/* Reserved regions stay out: they can hold MMIO, which must not be cached. */
+/* Reserved regions may be MMIO, so they stay unmapped. */
 static void map_physical_memory(uint64_t *pml4)
 {
     uint64_t data = PAGE_PRESENT | PAGE_WRITE | no_execute;
@@ -188,9 +180,7 @@ static void map_physical_memory(uint64_t *pml4)
         uint64_t address = region.base & ~(PAGE_SIZE - 1);
         uint64_t end = (region.base + region.length + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
 
-        /* A large page must lie inside the region itself, not its rounded
-           bounds, or a neighbour's 4 KiB page would land inside it. The
-           framebuffer stays out: PAGE_PAT sits at another bit in large pages. */
+        /* Only fully inside the region, and not the framebuffer: PAT is another bit there. */
         while (address < end) {
             uint64_t virt = address + boot->physmap_offset;
 
@@ -217,7 +207,7 @@ static void enable_no_execute(void)
     no_execute = PAGE_NX;
 }
 
-/* SMAP stays off, or the kernel could not read syscall buffers. */
+/* SMAP off: syscalls read user buffers directly. */
 static void set_user_protection(void)
 {
     uint32_t eax, ebx, ecx, edx;
@@ -246,7 +236,7 @@ void paging_init(struct boot_info *info)
     kernel_pml4 = pml4;
     kernel_space = pml4_phys;
 
-    /* The heap's PML4 entry must exist before anything copies this PML4. */
+    /* Must exist before any PML4 copies it. */
     next_table(pml4, (HEAP_START >> 39) & (PAGE_ENTRIES - 1), 0);
 
     map_kernel_segment(pml4, __kernel_start, __text_start, PAGE_PRESENT | PAGE_WRITE | no_execute);
@@ -254,12 +244,12 @@ void paging_init(struct boot_info *info)
     map_kernel_segment(pml4, __rodata_start, __data_start, PAGE_PRESENT | no_execute);
     map_kernel_segment(pml4, __data_start, __kernel_end, PAGE_PRESENT | PAGE_WRITE | no_execute);
 
-    /* Also keeps the stack alive: it is still the one the bootloader gave us. */
+    /* Also maps the bootloader's stack we still run on. */
     map_physical_memory(pml4);
 
     asm volatile("mov %0, %%cr3" : : "r"(pml4_phys) : "memory");
 
-    /* Last, so the bitmap sits past the tables and sees the final memory map. */
+    /* Last, so it sees the final memory map. */
     pmm_init(info);
     pmm_ready = true;
 }
@@ -301,7 +291,6 @@ bool paging_map_user(uint64_t space, uint64_t virt, size_t size, const void *dat
         char *memory = (char *)phys_to_virt(phys);
         memset(memory, 0, PAGE_SIZE);
 
-        /* The part of [virt, virt + data_size) inside this page. */
         uint64_t from = page > virt ? page : virt;
         uint64_t to = page + PAGE_SIZE < virt + data_size ? page + PAGE_SIZE : virt + data_size;
         if (from < to)
@@ -316,7 +305,6 @@ bool paging_map_user(uint64_t space, uint64_t virt, size_t size, const void *dat
     return true;
 }
 
-/* Level 1 is a page table, whose entries are the user's own pages. */
 static void free_table(uint64_t phys, int level)
 {
     uint64_t *table = phys_to_virt(phys);

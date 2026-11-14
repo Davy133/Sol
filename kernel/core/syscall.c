@@ -7,8 +7,7 @@
 #include <stdio.h>
 #include <string.h>
 
-/* The number is in rax and the arguments in rdi, rsi and rdx; the result goes
-   back in rax, with -1 for any error. */
+/* Number in rax, arguments in rdi, rsi, rdx; result in rax, -1 on error. */
 #define SYS_EXIT    0
 #define SYS_WRITE   1   /* (fd, buffer, length) -> bytes written */
 #define SYS_READ    2   /* (fd, buffer, length) -> bytes read, 0 at the end of a file */
@@ -18,7 +17,6 @@
 #define SYS_WAIT    6   /* (process id) -> 0 once it has exited */
 #define SYS_LIST    7   /* (index, buffer, length) -> length of the index-th initrd path */
 
-/* 0 to 2 are the console; opened files start after them. */
 #define FD_STDIN    0
 #define FD_STDOUT   1
 #define FD_STDERR   2
@@ -26,15 +24,13 @@
 
 #define PATH_MAX    256
 
-/* sti takes effect once hlt has started, so an interrupt arriving after the
-   caller's check still wakes it.
-   shortcut: halts through its time slices; use a wait queue once tasks can block. */
+/* sti holds interrupts until hlt runs, so no wakeup is lost.
+   shortcut: wakes on every interrupt; use wait queues once tasks can block. */
 static void wait_for_interrupt(void)
 {
     asm volatile("sti; hlt; cli" ::: "memory");
 }
 
-/* Copies a NUL-terminated user string, checking each page before reading it. */
 static bool copy_string(uint64_t user, char *buffer, size_t size)
 {
     for (size_t i = 0; i < size; i++) {
@@ -58,7 +54,7 @@ static struct file *open_file(uint64_t fd)
 
 static int64_t sys_write(uint64_t fd, uint64_t buffer, uint64_t length)
 {
-    /* Interrupts are off in here, so a long write would stall everything. */
+    /* Interrupts are off here, so cap long writes. */
     if (length > PAGE_SIZE)
         length = PAGE_SIZE;
     if ((fd != FD_STDOUT && fd != FD_STDERR) || !paging_user_accessible(buffer, length, 0))
@@ -69,7 +65,6 @@ static int64_t sys_write(uint64_t fd, uint64_t buffer, uint64_t length)
     return (int64_t)length;
 }
 
-/* Blocks for one key, then also takes the keys already typed. */
 static int64_t read_keyboard(char *buffer, uint64_t length)
 {
     uint64_t count = 0;
@@ -136,7 +131,6 @@ static int64_t sys_close(uint64_t fd)
     return 0;
 }
 
-/* The strings go into one page, which also bounds what map_arguments() gets. */
 static int64_t sys_spawn(uint64_t user_path, uint64_t user_argv)
 {
     char path[PATH_MAX];
@@ -179,7 +173,7 @@ out:
 
 static int64_t sys_wait(uint64_t id)
 {
-    /* The boot task (0) never exits, and nothing could wake a task waiting on itself. */
+    /* Waiting on yourself or the boot task would never end. */
     if (id == 0 || id == sched_current_id())
         return -1;
 

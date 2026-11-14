@@ -28,13 +28,14 @@ void kernel_main(const struct boot_info* info) {
     initrd_init(info->initrd.address, info->initrd.size);
     klog(KLOG_DEBUG, "initrd: %lu KiB at 0x%lx", info->initrd.size / 1024, (uint64_t)info->initrd.address);
 
+#ifdef SELFTEST
     heap_selftest();
     klog(KLOG_INFO, "Memory self-test passed");
 
     sched_selftest();
     klog(KLOG_INFO, "Scheduler self-test passed");
+#endif
 
-    /* The boot log stays on the serial port and in the klog history. */
     klog(KLOG_INFO, "Starting init (bin/sh)");
     terminal_clear();
 

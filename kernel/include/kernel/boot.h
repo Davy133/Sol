@@ -4,9 +4,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
-/* What a boot adapter (arch/<arch>/boot/<bootloader>/) owes the kernel. Before
-   arch_start() it must leave the CPU in 64-bit mode with interrupts off, a valid
-   stack, the kernel at its link address and all physical memory at physmap_offset. */
+/* The boot adapter calls arch_start() in 64-bit mode with interrupts off, the
+   kernel at its link address and all RAM mapped at physmap_offset. */
 
 #define BOOT_MAX_MEMORY_REGIONS 256
 
@@ -28,7 +27,6 @@ struct boot_memory_region {
 	enum boot_memory_type type;
 };
 
-/* address is NULL when there is no usable framebuffer. */
 struct boot_framebuffer {
 	void* address;
 	uint64_t width;
@@ -43,21 +41,18 @@ struct boot_framebuffer {
 	uint8_t blue_shift;
 };
 
-/* address is NULL when the bootloader loaded no initrd. */
 struct boot_module {
 	const void* address;
 	uint64_t size;
 };
 
 struct boot_info {
-	/* Virtual address of physical address 0. */
+	/* Virtual address of physical 0. */
 	uint64_t physmap_offset;
-	/* Physical address of __kernel_start; the image is physically contiguous. */
 	uint64_t kernel_physical_base;
 	struct boot_memory_region memory_regions[BOOT_MAX_MEMORY_REGIONS];
 	size_t memory_region_count;
 	struct boot_framebuffer framebuffer;
-	/* In memory reported as BOOT_MEMORY_KERNEL, so reachable through the physical map. */
 	struct boot_module initrd;
 };
 

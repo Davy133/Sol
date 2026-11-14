@@ -1,5 +1,4 @@
-/* ls [directory]: lists the initrd's files, or those under directory. The
-   initrd stores full paths, so directories are only path prefixes. */
+/* The initrd stores full paths, so a directory is a path prefix. */
 #include "sol.h"
 
 #define NAME_MAX 256

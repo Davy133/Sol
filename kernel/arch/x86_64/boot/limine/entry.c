@@ -3,7 +3,6 @@
 
 #include "limine.h"
 
-/* Limine finds these by scanning the image, before any kernel code runs. */
 __attribute__((used, section(".limine_requests")))
 static volatile uint64_t limine_base_revision[] = LIMINE_BASE_REVISION(6);
 
@@ -77,7 +76,7 @@ static enum boot_memory_type convert_memory_type(uint64_t type) {
     }
 }
 
-/* Copied because Limine's response lives in bootloader-reclaimable memory. */
+/* Limine's response is in reclaimable memory. */
 static void read_memory_map(void) {
     struct limine_memmap_response* memmap = memmap_request.response;
 
@@ -120,7 +119,6 @@ static void read_framebuffer(void) {
     };
 }
 
-/* limine.conf lists the initrd as the only module. */
 static void read_initrd(void) {
     struct limine_module_response* response = module_request.response;
 

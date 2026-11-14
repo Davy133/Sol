@@ -1,5 +1,4 @@
-/* Code is mapped read-only, so writing to it must kill the process; surviving
-   hangs the self-test. */
+/* Must be killed, or the self-test hangs. */
 int main(void)
 {
     *(volatile char *)(unsigned long)main = 0;

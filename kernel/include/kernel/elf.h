@@ -4,8 +4,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-/* The part of the System V ELF definitions the loader uses. */
-
 #define EI_NIDENT       16
 #define ELFCLASS64      2
 #define ELFDATA2LSB     1
@@ -47,9 +45,7 @@ typedef struct {
     uint64_t p_align;
 } Elf64_Phdr;
 
-/* Maps a static x86-64 executable's segments into space and returns its entry
-   point, or 0 when the file is invalid or memory runs out. Pages mapped before
-   a failure stay in space for its owner to free. */
+/* Returns the entry point, or 0; pages mapped before a failure stay in space. */
 uint64_t elf_load(uint64_t space, const void* file, size_t size);
 
 #endif

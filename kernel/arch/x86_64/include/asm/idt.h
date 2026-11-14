@@ -11,7 +11,6 @@
 #define IDT_PRIV(x)      (((x) & 0x03) << 0x05)
 
 #define IDT_INTERRUPT_GATE  (IDT_PRES(1) | IDT_PRIV(0) | IDT_GATE_TYPE(0xE))
-#define IDT_TRAP_GATE       (IDT_PRES(1) | IDT_PRIV(0) | IDT_GATE_TYPE(0xF))
 #define IDT_USER_INT_GATE   (IDT_PRES(1) | IDT_PRIV(3) | IDT_GATE_TYPE(0xE))
 
 typedef struct {

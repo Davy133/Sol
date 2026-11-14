@@ -4,7 +4,6 @@
 
 #define BLOCK_SIZE 512
 
-/* The ustar header; numbers are octal text. */
 struct tar_header {
     char name[100];
     char mode[8];
@@ -36,7 +35,6 @@ void initrd_init(const void *data, size_t size)
     archive_size = size;
 }
 
-/* False for anything but octal digits, optionally ended by NUL or space. */
 static bool parse_octal(const char *field, size_t length, uint64_t *value)
 {
     *value = 0;
@@ -48,7 +46,7 @@ static bool parse_octal(const char *field, size_t length, uint64_t *value)
     return true;
 }
 
-/* Compares a field that is NUL-terminated only when shorter than length. */
+/* field is NUL-terminated only when shorter than length. */
 static const char *match_field(const char *path, const char *field, size_t length)
 {
     size_t i = 0;
@@ -59,7 +57,6 @@ static const char *match_field(const char *path, const char *field, size_t lengt
     return path + i;
 }
 
-/* Long names are split into prefix "/" name. */
 static bool matches(const struct tar_header *header, const char *path)
 {
     if (header->prefix[0] != '\0') {
@@ -72,14 +69,11 @@ static bool matches(const struct tar_header *header, const char *path)
     return path != NULL && *path == '\0';
 }
 
-/* The next regular file's header, moving offset past it; NULL at the end of
-   the archive or where it is malformed. */
 static const struct tar_header *next_file(size_t *offset, uint64_t *size)
 {
     while (archive_size - *offset >= BLOCK_SIZE) {
         const struct tar_header *header = (const struct tar_header *)(archive + *offset);
 
-        /* The archive ends with zero blocks. */
         if (header->name[0] == '\0')
             return NULL;
         if (!parse_octal(header->size, sizeof(header->size), size)
@@ -113,7 +107,6 @@ bool initrd_find(const char *path, const void **data, size_t *size)
     return false;
 }
 
-/* Appends a field that is NUL-terminated only when shorter than length. */
 static bool append_field(char *name, size_t size, size_t *used, const char *field, size_t length)
 {
     for (size_t i = 0; i < length && field[i] != '\0'; i++) {

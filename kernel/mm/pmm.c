@@ -6,7 +6,7 @@
 
 #define BITS_PER_WORD   64
 
-/* One bit per physical page; a set bit means the page is in use. */
+/* A set bit means the page is in use. */
 static uint64_t *bitmap;
 static size_t word_count;
 static uint64_t page_count;
@@ -67,7 +67,7 @@ void pmm_init(const struct boot_info *info)
     uint64_t bitmap_size = (word_count * sizeof(uint64_t) + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
     uint64_t bitmap_phys = find_bitmap_space(info, bitmap_size);
 
-    /* Everything starts used, so holes in the memory map can never be handed out. */
+    /* All used, so holes in the map are never handed out. */
     bitmap = (uint64_t *)(bitmap_phys + info->physmap_offset);
     memset(bitmap, 0xff, word_count * sizeof(uint64_t));
 
@@ -87,7 +87,7 @@ void pmm_init(const struct boot_info *info)
     for (uint64_t offset = 0; offset < bitmap_size; offset += PAGE_SIZE)
         mark_used((bitmap_phys + offset) / PAGE_SIZE);
 
-    /* 0 is what pmm_alloc_page() returns on failure. */
+    /* 0 means failure. */
     mark_used(0);
 }
 

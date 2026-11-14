@@ -7,7 +7,6 @@
 
 #include "fb.h"
 
-/* Fits 4K at the current glyph size; larger screens use the top-left part. */
 #define TERMINAL_MAX_ROWS 160
 #define TERMINAL_MAX_COLUMNS 256
 
@@ -20,10 +19,9 @@ static uint32_t terminal_background;
 static volatile uint32_t* terminal_buffer;
 static size_t terminal_pitch;
 
-/* What each cell shows; reading the framebuffer back to scroll is slow on real hardware. */
+/* Reading the framebuffer back is slow on real hardware. */
 static unsigned char terminal_cells[TERMINAL_MAX_ROWS][TERMINAL_MAX_COLUMNS];
 
-/* Without a 32-bit framebuffer the terminal stays off and output is dropped. */
 int terminal_initialize(const struct boot_framebuffer* fb) {
 	if (fb->address == NULL || fb->bpp != 32) {
 		return 0;
@@ -70,7 +68,6 @@ void terminal_clear(void) {
 	terminal_column = 0;
 }
 
-/* Moves every row up by one and redraws only the cells that changed. */
 static void terminal_scroll(void) {
 	const size_t last = terminal_rows - 1;
 
@@ -100,6 +97,10 @@ void terminal_putchar(char c) {
 		terminal_column = 0;
 	}
 	else if (c == '\b') {
+		if (terminal_column == 0 && terminal_row > 0) {
+			terminal_row--;
+			terminal_column = terminal_columns;
+		}
 		if (terminal_column > 0) {
 			terminal_column--;
 			terminal_putentryat(' ', terminal_column, terminal_row);
@@ -120,13 +121,4 @@ void terminal_putchar(char c) {
 		terminal_scroll();
 		terminal_row = terminal_rows - 1;
 	}
-}
-
-void terminal_write(const char* data, size_t size) {
-	for (size_t i = 0; i < size; i++)
-		terminal_putchar(data[i]);
-}
-
-void terminal_writestring(const char* data) {
-	terminal_write(data, strlen(data));
 }

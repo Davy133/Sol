@@ -4,7 +4,7 @@
 
 int main(void);
 
-/* The kernel must refuse each of these; if it does not, hang so the self-test fails. */
+/* Hangs the self-test if the kernel accepts any of these. */
 static int kernel_refuses_bad_pointers(void)
 {
     return sys_write(STDOUT, KERNEL_ADDRESS, 1) == -1

@@ -2,7 +2,6 @@ OUTPUT_FORMAT(elf64-x86-64)
 
 ENTRY(_start)
 
-/* Each segment gets its own permissions; paging_init() needs the symbols below. */
 PHDRS
 {
 	limine_requests PT_LOAD FLAGS(0x06); /* Read, write */
@@ -13,8 +12,6 @@ PHDRS
 
 SECTIONS
 {
-	/* The Limine protocol loads the kernel in the topmost 2 GiB of the address
-	   space, which is also what -mcmodel=kernel expects. */
 	. = 0xffffffff80000000;
 	__kernel_start = .;
 
@@ -49,7 +46,7 @@ SECTIONS
 		*(.data .data.*)
 	} :data
 
-	/* Must stay last in the data segment, or its zeros are written to the file. */
+	/* Keep last, or its zeros end up in the file. */
 	.bss :
 	{
 		*(COMMON)

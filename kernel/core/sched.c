@@ -13,7 +13,7 @@
 #define TASK_STACK_SIZE 16384
 #define RFLAGS_IF       0x202
 
-/* A circular list; boot_task never exits, so it always has one task to run. */
+/* Circular list; boot_task never exits. */
 struct task {
     uint64_t id;
     registers_t regs;
@@ -28,7 +28,7 @@ static struct task boot_task = { .next = &boot_task };
 static struct task *current = &boot_task;
 static uint64_t next_id = 1;
 
-/* sched_tick() frees the task once it runs on another task's stack. */
+/* sched_tick() frees it later, from another stack. */
 void task_exit(void)
 {
     current->dead = true;
@@ -92,9 +92,7 @@ bool task_create(void (*entry)(void))
     return true;
 }
 
-/* Fills the top stack page as the System V ABI has it at _start: argc, the
-   argv pointers, a NULL argv end, an empty envp and an auxv with only
-   AT_NULL, with the strings above them. Returns the user stack pointer. */
+/* System V stack: argc, argv, NULL, empty envp, AT_NULL auxv. */
 static uint64_t map_arguments(uint64_t space, const char *const *argv)
 {
     char *page = kmalloc(PAGE_SIZE);
@@ -119,7 +117,6 @@ static uint64_t map_arguments(uint64_t space, const char *const *argv)
         pointers[argc] = base + top;
     }
 
-    /* argc, argv[0..argc], envp's NULL and the AT_NULL pair. */
     size_t words = argc + 5;
 
     if (words * sizeof(uint64_t) + 16 > top) {
@@ -176,8 +173,7 @@ uint64_t process_spawn(const char *path, const char *const *argv)
     return initrd_find(path, &elf, &size) ? process_create(elf, size, argv) : 0;
 }
 
-/* Runs on the interrupted task's stack and address space, so that one is the
-   only dead task it cannot free yet. */
+/* Runs on the current task's stack, so it can't free that one. */
 void sched_tick(registers_t *regs)
 {
     current->regs = *regs;
@@ -245,14 +241,14 @@ static void run_test_tasks(void)
             || !process_spawn("test/hello", NULL)
             || !process_spawn("test/fault_kernel", NULL)
             || !process_spawn("test/fault_code", NULL)
-            || !process_spawn("bin/echo", (const char *const[]){ "echo", "argv", "reached", "echo", NULL }))
+            || !process_spawn("bin/echo", (const char *const[]){ "echo", "argv", "reached", "echo", NULL })
+            || !process_spawn("bin/ls", (const char *const[]){ "ls", "test", NULL }))
         panic("scheduler self-test: could not start a task");
 
     if (process_spawn("test/missing", NULL) || process_spawn("test/hell", NULL) || process_spawn("test", NULL))
         panic("scheduler self-test: started a file not in the initrd");
 
-    /* 0x2010 cuts hello's third segment short after two are mapped, so the
-       leak check also covers a load that fails halfway. */
+    /* 0x2010 cuts hello off mid-load, so leaks on partial loads show up. */
     if (!initrd_find("test/hello", &hello, &size) || size <= 0x2010)
         panic("scheduler self-test: test/hello is missing or too small");
     if (process_create(hello, sizeof(Elf64_Ehdr) - 1, NULL)
@@ -264,7 +260,7 @@ static void run_test_tasks(void)
         panic("scheduler self-test: a kernel task never ran");
 }
 
-/* The first round may create page tables, which stay for reuse; the second must not. */
+/* The first round may leave page tables for reuse. */
 void sched_selftest(void)
 {
     run_test_tasks();

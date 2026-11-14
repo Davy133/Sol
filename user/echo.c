@@ -1,4 +1,3 @@
-/* echo [text...]: prints its arguments separated by spaces. */
 #include "sol.h"
 
 int main(int argc, char *argv[])

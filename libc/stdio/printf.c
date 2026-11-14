@@ -21,7 +21,6 @@ static bool skip_long_modifier(const char* restrict* format) {
 	return is_long;
 }
 
-/* Accepts an optional zero-padding width: %0<width><conv>. */
 static bool is_number_spec(const char* format) {
 	if (*format == '0')
 		while (*format >= '0' && *format <= '9')

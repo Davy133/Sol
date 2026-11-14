@@ -1,5 +1,4 @@
-/* The kernel starts a process here with argc at the stack pointer and the
-   argv pointers above it; main's return value becomes the exit status. */
+/* argc is at the stack pointer, argv above it. */
 .global _start
 _start:
     mov (%rsp), %rdi

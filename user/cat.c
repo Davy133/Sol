@@ -1,4 +1,3 @@
-/* cat file...: prints initrd files. */
 #include "sol.h"
 
 static char buffer[4096];

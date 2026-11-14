@@ -7,7 +7,6 @@
 
 #define TSS_STACK_SIZE 16384
 
-/* Value for the IDT gate's ist field; IST numbers start at 1. */
 #define TSS_IST_DOUBLE_FAULT 1
 
 typedef struct {
@@ -24,8 +23,7 @@ typedef struct {
     uint64_t base;
 } __attribute__((packed)) gdt_ptr_t;
 
-/* User data comes before user code because sysret derives both selectors
-   from a single base in that order. The TSS descriptor takes two entries. */
+/* The TSS descriptor takes two entries. */
 enum gdt_selectors {
     GDT_NULL        = 0,
     GDT_KERNEL_CODE = 1,

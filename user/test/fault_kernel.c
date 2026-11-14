@@ -1,4 +1,4 @@
-/* Reading kernel memory must kill the process; surviving hangs the self-test. */
+/* Must be killed, or the self-test hangs. */
 int main(void)
 {
     (void)*(volatile char *)0xffffffff80000000UL;
