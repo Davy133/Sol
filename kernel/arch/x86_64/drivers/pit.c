@@ -5,8 +5,6 @@
 #include <kernel/log.h>
 
 #define PIT_CHANNEL0    0x40
-#define PIT_COMMAND     0x43
-#define PIT_BASE_HZ     1193182
 #define PIT_SQUARE_WAVE 0x36    /* Channel 0, low then high byte, mode 3 */
 
 #define PIT_IRQ 0
