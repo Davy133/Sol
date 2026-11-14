@@ -10,15 +10,7 @@
 
 static uint8_t log_lock;
 
-/*
- * Circular log history.
- *
- * log_start points to the oldest entry.
- * log_count tracks the number of valid entries.
- * When full, new entries overwrite the oldest ones.
- *
- * Access is protected by the logger lock.
- */
+/* Circular history: log_start is the oldest entry. Guarded by log_lock. */
 static struct klog_entry log_buffer[KLOG_BUFFER_CAPACITY];
 static size_t log_start;
 static size_t log_count;
@@ -69,9 +61,6 @@ static void klog_begin(enum klog_level level) {
     active_length = 0;
 }
 
-/*
- * Finalizes the active entry.
- */
 static void klog_end(void) {
     if (active_entry != NULL) {
         active_entry->message[active_length] = '\0';
@@ -80,9 +69,6 @@ static void klog_end(void) {
     }
 }
 
-/*
- * Prints the timestamp and severity prefix of a log entry.
- */
 static void klog_prefix(enum klog_level level, uint64_t ticks) {
     unsigned long seconds = ticks / PIT_HZ;
     unsigned long milliseconds = (ticks % PIT_HZ) * 1000 / PIT_HZ;
@@ -105,14 +91,9 @@ static void klog_prefix(enum klog_level level, uint64_t ticks) {
     }
 }
 
-/*
- * Logs a message that arrived while another klog() call holds the lock.
- *
- * Interrupts are disabled while the lock is held, so on a single CPU this
- * only happens when a fault interrupts klog() and its handler logs again.
- * Waiting would deadlock, so the message goes straight to the output
- * devices instead of the history. With SMP this must check the lock owner.
- */
+/* Reached when a fault interrupts klog() and its handler logs. Waiting for the
+   lock would deadlock, so the message skips the history. With SMP this must
+   check the lock owner. */
 static void klog_nested(enum klog_level level, const char* format, va_list arguments) {
     struct klog_entry* interrupted = active_entry;
 
@@ -150,7 +131,7 @@ void klog(enum klog_level level, const char* format, ...) {
     va_end(arguments);
 }
 
-/* Interrupts stay off so an interrupt handler that prints cannot re-enter the terminal. */
+/* Interrupts stay off so a handler that prints cannot re-enter the terminal. */
 void klog_write_char(char c) {
     uint64_t flags = irq_save();
     bool to_terminal = true;
@@ -181,9 +162,6 @@ void klog_write_char(char c) {
     irq_restore(flags);
 }
 
-/*
- * Returns the number of entries currently stored.
- */
 size_t klog_count(void) {
     uint64_t flags = klog_lock_irqsave();
     size_t count = log_count;
@@ -192,11 +170,6 @@ size_t klog_count(void) {
     return count;
 }
 
-/*
- * Copies an entry into the caller-provided structure.
- * Index 0 represents the oldest stored entry.
- * Returns false if the index is out of range or entry is NULL.
- */
 bool klog_read(size_t index, struct klog_entry* entry) {
     if (entry == NULL)
         return false;

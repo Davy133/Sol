@@ -40,7 +40,6 @@ void idt_set_gate(uint8_t num, uint64_t base, uint16_t selector, uint8_t flags);
 void isr_handler(registers_t *regs);
 void irq_handler(registers_t *regs);
 
-/* IRQ handler registration */
 typedef void (*irq_handler_t)(registers_t *);
 void irq_register_handler(uint8_t irq, irq_handler_t handler);
 

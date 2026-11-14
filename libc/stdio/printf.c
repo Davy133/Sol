@@ -4,7 +4,6 @@
 #include <stdio.h>
 #include <string.h>
 
-/* código feio da porra */
 static bool print(const char* data, size_t length) {
 	const unsigned char* bytes = (const unsigned char*) data;
 	for (size_t i = 0; i < length; i++)
@@ -57,7 +56,6 @@ static int print_formatted(const char* restrict format, va_list* parameters) {
 			while (format[amount] && format[amount] != '%')
 				amount++;
 			if (maxrem < amount) {
-				// TODO: Set errno to EOVERFLOW.
 				return -1;
 			}
 			if (!print(format, amount))
@@ -73,7 +71,6 @@ static int print_formatted(const char* restrict format, va_list* parameters) {
 			format++;
 			char c = (char) va_arg(*parameters, int /* char promotes to int */);
 			if (!maxrem) {
-				// TODO: Set errno to EOVERFLOW.
 				return -1;
 			}
 			if (!print(&c, sizeof(c)))
@@ -86,7 +83,6 @@ static int print_formatted(const char* restrict format, va_list* parameters) {
 				str = "(null)";
 			size_t len = strlen(str);
 			if (maxrem < len) {
-				// TODO: Set errno to EOVERFLOW.
 				return -1;
 			}
 			if (!print(str, len))
@@ -121,7 +117,6 @@ static int print_formatted(const char* restrict format, va_list* parameters) {
 			format = format_begun_at;
 			size_t len = strlen(format);
 			if (maxrem < len) {
-				// TODO: Set errno to EOVERFLOW.
 				return -1;
 			}
 			if (!print(format, len))

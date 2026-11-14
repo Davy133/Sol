@@ -20,10 +20,7 @@ static uint32_t terminal_background;
 static volatile uint32_t* terminal_buffer;
 static size_t terminal_pitch;
 
-/*
- * What each cell currently shows, so scrolling can redraw from memory
- * instead of reading the framebuffer back, which is slow on real hardware.
- */
+/* What each cell shows; reading the framebuffer back to scroll is slow on real hardware. */
 static unsigned char terminal_cells[TERMINAL_MAX_ROWS][TERMINAL_MAX_COLUMNS];
 
 /* Without a 32-bit framebuffer the terminal stays off and output is dropped. */

@@ -40,17 +40,16 @@ int pic_is_spurious(uint8_t irq) {
 }
 
 void pic_remap(int offset1, int offset2) {
-    // Start initialization (ICW1)
+    // ICW1: start initialization
     outb(PIC1_COMMAND, 0x11); io_wait();
     outb(PIC2_COMMAND, 0x11); io_wait();
 
-    // ICW2: Set vector offsets
+    // ICW2: vector offsets
     outb(PIC1_DATA, offset1); io_wait();
     outb(PIC2_DATA, offset2); io_wait();
 
-    // ICW3: Tell Master PIC about Slave PIC at IRQ2 (0000 0100)
+    // ICW3: slave on IRQ2, then the slave's cascade identity
     outb(PIC1_DATA, 0x04); io_wait();
-    // ICW3: Tell Slave PIC its cascade identity (0000 0010)
     outb(PIC2_DATA, 0x02); io_wait();
 
     // ICW4: 8086 mode

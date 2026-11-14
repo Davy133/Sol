@@ -2,8 +2,7 @@
 #define LAYOUT_H
 
 /*
- * Virtual address space. Each process gets the lower half; the upper half is the
- * kernel's and looks the same in all of them.
+ * Virtual address space; the upper half is the kernel's, the same in every process.
  *
  * 0x0000000000000000 - 0x00007fffffffffff  user
  * 0xffff800000000000 - 0xffffbfffffffffff  physical memory (boot_info.physmap_offset)

@@ -5,8 +5,8 @@
 
 #define PAGE_SIZE 4096ULL
 
-/* Physical page allocator. Addresses are physical; reach them through
-   physmap_offset. Not safe to call from interrupt handlers yet. */
+/* Addresses are physical; reach them through physmap_offset. Not safe in
+   interrupt handlers yet. */
 void pmm_init(const struct boot_info* info);
 
 /* Returns 0 when memory runs out; page 0 is never handed out. */
