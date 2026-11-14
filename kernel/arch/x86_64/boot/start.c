@@ -2,6 +2,7 @@
 #include <asm/idt.h>
 #include <asm/paging.h>
 #include <kernel/boot.h>
+#include <kernel/keyboard.h>
 #include <kernel/log.h>
 #include <kernel/panic.h>
 #include <kernel/pit.h>
@@ -34,6 +35,7 @@ void arch_start(struct boot_info* info) {
     klog(KLOG_INFO, "IDT initialized");
 
     pit_init();
+    keyboard_init();
 
     asm volatile("sti");
     klog(KLOG_INFO, "Interrupts enabled");

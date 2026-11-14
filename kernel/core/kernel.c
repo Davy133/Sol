@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <kernel/boot.h>
+#include <kernel/keyboard.h>
 #include <kernel/log.h>
 
 
@@ -18,4 +19,13 @@ void kernel_main(const struct boot_info* info) {
     klog(KLOG_DEBUG,
          "Usable memory: %lu MiB, physical memory mapped at 0x%lx",
          usable / (1024 * 1024), info->physmap_offset);
+
+    for (;;) {
+        int c;
+
+        while ((c = keyboard_getchar()) >= 0)
+            putchar(c);
+
+        asm volatile("hlt");
+    }
 }

@@ -113,6 +113,12 @@ void terminal_putchar(char c) {
 	else if (c == '\r') {
 		terminal_column = 0;
 	}
+	else if (c == '\b') {
+		if (terminal_column > 0) {
+			terminal_column--;
+			terminal_putentryat(' ', terminal_column, terminal_row);
+		}
+	}
 	else if (c == '\t') {
 		terminal_column = (terminal_column + 8) / 8 * 8;
 	}

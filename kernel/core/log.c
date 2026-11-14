@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <stdio.h>
 
+#include <asm/irq.h>
 #include <kernel/log.h>
 #include <kernel/pit.h>
 #include <kernel/serial.h>
@@ -27,26 +28,6 @@ static enum klog_level serial_min_level = KLOG_DEBUG;
 
 static struct klog_entry* active_entry;
 static size_t active_length;
-
-static uint64_t irq_save(void) {
-    uint64_t flags;
-
-    asm volatile(
-        "pushfq\n\t"
-        "popq %0\n\t"
-        "cli"
-        : "=r"(flags)
-        :
-        : "memory"
-    );
-
-    return flags;
-}
-
-static void irq_restore(uint64_t flags) {
-    if (flags & (1ULL << 9))
-        asm volatile("sti" ::: "memory");
-}
 
 static bool klog_trylock(void) {
     return !__atomic_exchange_n(&log_lock, 1, __ATOMIC_ACQUIRE);
