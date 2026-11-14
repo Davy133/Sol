@@ -37,7 +37,6 @@ void gdt_init(void)
 
     tss.iomap_base = sizeof(tss_entry_t);
 
-    /* Stacks grow down, so each one starts at the end of its buffer. */
     tss_set_kernel_stack((uint64_t)kernel_stack + sizeof(kernel_stack));
     tss.ist[TSS_IST_DOUBLE_FAULT - 1] = (uint64_t)double_fault_stack + sizeof(double_fault_stack);
 

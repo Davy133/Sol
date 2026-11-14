@@ -34,6 +34,8 @@ $(KERNEL_ARCH_OBJS) \
 core/kernel.o \
 core/log.o \
 core/elf.o \
+core/initrd.o \
+core/syscall.o \
 core/panic.o \
 core/sched.o \
 drivers/tty.o \
@@ -48,10 +50,16 @@ $(LDFLAGS) \
 $(KERNEL_OBJS) \
 $(LIBS) \
 
-.PHONY: all clean install install-headers install-kernel
+.PHONY: FORCE all clean install install-headers install-kernel
 .SUFFIXES: .o .c .asm
 
 all: sol.kernel
+
+# Rebuilds everything when the flags change, e.g. between test.sh and qemu.sh.
+flags.stamp: FORCE
+	@echo '$(CFLAGS) $(CPPFLAGS)' | cmp -s - $@ || echo '$(CFLAGS) $(CPPFLAGS)' > $@
+
+$(OBJS): flags.stamp
 
 sol.kernel: $(OBJS) $(KERNEL_LINKER_SCRIPT)
 	$(CC) -T $(KERNEL_LINKER_SCRIPT) -o $@ $(CFLAGS) $(LINK_LIST)
@@ -62,13 +70,8 @@ sol.kernel: $(OBJS) $(KERNEL_LINKER_SCRIPT)
 .asm.o:
 	$(NASM) $(NASMFLAGS) -MD $(@:.o=.d) $< -o $@
 
-$(ARCHDIR)/user/programs.o: $(USER_PROGRAMS)
-
-%.elf: %.c
-	$(CC) -MD -o $@ $< $(USER_CFLAGS)
-
 clean:
-	rm -f sol.kernel $(USER_PROGRAMS)
+	rm -f sol.kernel flags.stamp
 	rm -f $(OBJS) *.o */*.o */*/*.o */*/*/*.o */*/*/*/*.o
 	rm -f $(OBJS:.o=.d) *.d */*.d */*/*.d */*/*/*.d */*/*/*/*.d */*/*/*.asm.d
 
@@ -83,4 +86,3 @@ install-kernel: sol.kernel
 	cp sol.kernel $(DESTDIR)$(BOOTDIR)
 
 -include $(OBJS:.o=.d)
--include $(USER_PROGRAMS:.elf=.d)

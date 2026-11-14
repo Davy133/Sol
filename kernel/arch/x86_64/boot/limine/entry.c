@@ -3,7 +3,6 @@
 
 #include "limine.h"
 
-/* Limine finds these by scanning the image, before any kernel code runs. */
 __attribute__((used, section(".limine_requests")))
 static volatile uint64_t limine_base_revision[] = LIMINE_BASE_REVISION(6);
 
@@ -28,6 +27,12 @@ static volatile struct limine_framebuffer_request framebuffer_request = {
 __attribute__((used, section(".limine_requests")))
 static volatile struct limine_executable_address_request executable_address_request = {
     .id = LIMINE_EXECUTABLE_ADDRESS_REQUEST_ID,
+    .revision = 0
+};
+
+__attribute__((used, section(".limine_requests")))
+static volatile struct limine_module_request module_request = {
+    .id = LIMINE_MODULE_REQUEST_ID,
     .revision = 0
 };
 
@@ -71,7 +76,7 @@ static enum boot_memory_type convert_memory_type(uint64_t type) {
     }
 }
 
-/* Copied because Limine's response lives in bootloader-reclaimable memory. */
+/* Limine's response is in reclaimable memory. */
 static void read_memory_map(void) {
     struct limine_memmap_response* memmap = memmap_request.response;
 
@@ -114,6 +119,18 @@ static void read_framebuffer(void) {
     };
 }
 
+static void read_initrd(void) {
+    struct limine_module_response* response = module_request.response;
+
+    if (response == NULL || response->module_count < 1)
+        return;
+
+    boot_info.initrd = (struct boot_module) {
+        .address = response->modules[0]->address,
+        .size = response->modules[0]->size,
+    };
+}
+
 void _start(void) {
     if (!LIMINE_BASE_REVISION_SUPPORTED(limine_base_revision))
         boot_fail("base revision not supported");
@@ -126,6 +143,7 @@ void _start(void) {
     boot_info.kernel_physical_base = executable_address_request.response->physical_base;
     read_memory_map();
     read_framebuffer();
+    read_initrd();
 
     arch_start(&boot_info);
 }

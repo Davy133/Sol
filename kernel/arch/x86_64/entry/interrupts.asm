@@ -78,7 +78,7 @@ IRQ 13, 45
 IRQ 14, 46
 IRQ 15, 47
 
-; Long mode has no pusha/popa. The order here must match registers_t.
+; Must match registers_t.
 %macro SAVE_REGISTERS 0
     push rax
     push rcx
@@ -133,7 +133,6 @@ irq_common_stub:
     add rsp, 16
     iretq
 
-; void idt_flush(idt_ptr_t *idtp);
 idt_flush:
     lidt [rdi]
     ret

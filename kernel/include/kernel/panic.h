@@ -11,7 +11,6 @@ void panic_init(const struct boot_framebuffer* fb);
 __attribute__((__noreturn__))
 void panic_at(const char* file, int line, const char* message);
 
-/* Building blocks for the architecture's own reports. */
 void panic_begin(void);
 __attribute__((__noreturn__))
 void panic_end(uint64_t frame);
@@ -25,7 +24,6 @@ void panic_put_register(const char* name, uint64_t value);
 void arch_dump_registers(uint64_t pc);
 void arch_stack_trace(uint64_t frame);
 
-/* Timing and sound for the panic screen, which runs with interrupts off. */
 void arch_alarm_start(void);
 void arch_alarm_sound(bool on);
 void arch_alarm_wait(unsigned int ms);

@@ -1,4 +1,4 @@
 *.d
-*.elf
 *.kernel
 *.o
+flags.stamp

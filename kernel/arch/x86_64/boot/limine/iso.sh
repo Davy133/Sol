@@ -1,4 +1,3 @@
-# Sourced by iso.sh from the top of the tree.
 LIMINE_VERSION=12.9.6
 LIMINE_SHA256=b38aabb042b0c0f9f562b7741be3c1204838d7bbacfa78bb411c674bd5b984ee
 LIMINE_DIR=kernel/arch/x86_64/boot/limine
@@ -17,6 +16,7 @@ mkdir -p isodir/boot/limine
 mkdir -p isodir/EFI/BOOT
 
 cp sysroot/boot/sol.kernel isodir/boot/sol.kernel
+cp sysroot/boot/initrd.tar isodir/boot/initrd.tar
 cp "$LIMINE_DIR/limine.conf" isodir/boot/limine/
 cp limine-binary/limine-bios.sys \
    limine-binary/limine-bios-cd.bin \

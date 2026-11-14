@@ -8,7 +8,6 @@
 
 #define MARGIN          2       /* In characters */
 
-/* The blinking box around the title, in characters; the report starts below it. */
 #define BOX_TOP         1
 #define BOX_TEXT_ROW    2
 #define BOX_BOTTOM      6
@@ -75,8 +74,6 @@ static void draw_box(uint32_t value)
 
 void panic_put_char(char c)
 {
-    if (c == '\n')
-        serial_write('\r');
     serial_write(c);
 
     if (pixels == NULL)
@@ -151,7 +148,7 @@ void panic_begin(void)
     row = BOX_TEXT_ROW;
 
     put_centered("*** KERNEL PANIC ***");
-    put_centered("Solanum had an unexpected error and had to halt.");
+    put_centered("Sol had an unexpected error and had to halt.");
     put_centered("Debug information follows.");
 
     column = MARGIN;

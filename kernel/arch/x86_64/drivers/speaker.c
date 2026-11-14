@@ -12,10 +12,8 @@
 
 #define BEEP_HZ         880
 
-/* Gives up on a channel that stopped toggling, so a panic can't hang here. */
 #define WAIT_LIMIT      1000000
 
-/* The speaker's wave runs even while muted. */
 void arch_alarm_start(void)
 {
     uint16_t divisor = PIT_BASE_HZ / BEEP_HZ;
@@ -33,8 +31,7 @@ void arch_alarm_sound(bool on)
     outb(SPEAKER_PORT, on ? port | SPEAKER_DATA : port & ~SPEAKER_DATA);
 }
 
-/* Interrupts are off, so time comes from channel 2's own wave, which flips
-   twice per cycle. */
+/* Interrupts are off, so time comes from channel 2's own wave. */
 void arch_alarm_wait(unsigned int ms)
 {
     unsigned int flips = BEEP_HZ * 2 * ms / 1000;

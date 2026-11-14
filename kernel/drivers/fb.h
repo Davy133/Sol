@@ -9,8 +9,7 @@
 
 #include "font8x8_basic.h"
 
-/* Drawing helpers for a 32-bit framebuffer. They keep no state, so the panic
-   screen can use them whatever state the terminal is in. */
+/* Stateless, so the panic screen can use them too. */
 
 #define FB_GLYPH_SCALE  2
 #define FB_GLYPH_SIZE   (8 * FB_GLYPH_SCALE)
@@ -26,7 +25,7 @@ static inline uint32_t fb_color(const struct boot_framebuffer* fb, uint8_t red, 
          | fb_channel(blue, fb->blue_size, fb->blue_shift);
 }
 
-/* pitch is in pixels; (left, top) is the glyph's top-left pixel. */
+/* pitch is in pixels. */
 static inline void fb_draw_glyph(volatile uint32_t* pixels, size_t pitch, size_t left, size_t top,
                                  unsigned char c, uint32_t foreground, uint32_t background) {
     const unsigned char* glyph = font8x8_basic[c < 128 ? c : '?'];

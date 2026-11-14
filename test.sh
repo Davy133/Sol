@@ -1,7 +1,7 @@
 #!/bin/sh
-# Boots the ISO headless on a basic and a feature-rich CPU (SMEP, NX, ...) and
-# checks the serial log. Arguments go to QEMU.
+# Boots on a basic and a feature-rich CPU and checks the serial log.
 set -e
+export CPPFLAGS=-DSELFTEST
 . ./iso.sh
 
 for CPU in qemu64 max; do
@@ -14,7 +14,7 @@ for CPU in qemu64 max; do
     echo "FAIL: kernel panic on -cpu $CPU" >&2
     exit 1
   fi
-  for EXPECTED in 'Kernel initialized' 'Memory self-test passed' 'Hello from user mode' 'Scheduler self-test passed' 'Welcome to the Sol shell'; do
+  for EXPECTED in 'Kernel initialized' 'Memory self-test passed' 'Hello from user mode' 'argv reached echo' 'fault_code' 'Scheduler self-test passed' 'Welcome to the Sol shell'; do
     if ! echo "$LOG" | grep -q "$EXPECTED"; then
       echo "FAIL: missing \"$EXPECTED\" on -cpu $CPU" >&2
       exit 1

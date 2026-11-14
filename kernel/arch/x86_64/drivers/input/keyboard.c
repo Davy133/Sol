@@ -65,7 +65,6 @@ static bool kbd_send_byte(uint8_t byte) {
     return false;
 }
 
-/* A command that cannot be sent gets no reply, so it is dropped here. */
 static void kbd_send_head(void) {
     while (!queue_empty()) {
         struct kbd_cmd *head = &queue[queue_head];

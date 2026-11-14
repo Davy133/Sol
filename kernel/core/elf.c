@@ -6,9 +6,8 @@
 #include <stdbool.h>
 #include <string.h>
 
-/* Segments live in [PAGE_SIZE, USER_STACK_BOTTOM); page 0 stays unmapped so
-   null pointers fault. */
-#define USER_STACK_BOTTOM (USER_STACK_TOP - PAGE_SIZE)
+/* Page 0 stays unmapped so null pointers fault. */
+#define USER_STACK_BOTTOM (USER_STACK_TOP - USER_STACK_SIZE)
 
 static bool header_valid(const Elf64_Ehdr *header, size_t size)
 {
@@ -35,8 +34,7 @@ uint64_t elf_load(uint64_t space, const void *file, size_t size)
         return 0;
     }
 
-    /* PT_LOAD segments are sorted by address, so requiring each to start past
-       the previous one's last page rules out overlaps. */
+    /* Segments are sorted, so this also rules out overlaps. */
     uint64_t next_free = PAGE_SIZE;
     bool entry_mapped = false;
 
@@ -72,7 +70,7 @@ uint64_t elf_load(uint64_t space, const void *file, size_t size)
             return 0;
 
         next_free = (segment.p_vaddr + segment.p_memsz + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
-        /* A non-canonical entry would fault in the kernel's iretq, not in the process. */
+        /* A bad entry would fault in the kernel's iretq. */
         if ((segment.p_flags & PF_X) && header.e_entry >= segment.p_vaddr
                 && header.e_entry < segment.p_vaddr + segment.p_memsz)
             entry_mapped = true;
