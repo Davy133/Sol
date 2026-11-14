@@ -3,6 +3,7 @@
 #include <kernel/io.h>
 #include <kernel/pit.h>
 #include <kernel/log.h>
+#include <kernel/sched.h>
 
 #define PIT_CHANNEL0    0x40
 #define PIT_SQUARE_WAVE 0x36    /* Channel 0, low then high byte, mode 3 */
@@ -12,8 +13,8 @@
 static volatile uint64_t ticks;
 
 static void pit_tick(registers_t *regs) {
-    (void)regs;
     ticks++;
+    sched_tick(regs);
 }
 
 void pit_init(void) {

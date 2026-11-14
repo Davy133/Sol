@@ -4,6 +4,7 @@
 #include <kernel/heap.h>
 #include <kernel/keyboard.h>
 #include <kernel/log.h>
+#include <kernel/sched.h>
 
 
 void kernel_main(const struct boot_info* info) {
@@ -23,6 +24,9 @@ void kernel_main(const struct boot_info* info) {
 
     heap_selftest();
     klog(KLOG_INFO, "Memory self-test passed");
+
+    sched_selftest();
+    klog(KLOG_INFO, "Scheduler self-test passed");
 
     for (;;) {
         /* sti takes effect after the next instruction, so a key that arrives

@@ -13,6 +13,10 @@
  * process copying the upper half of the PML4 sees every later heap mapping.
  */
 
+#define USER_CODE       0x400000ULL
+#define USER_STACK_TOP  0x800000ULL
+#define USER_END        0x0000800000000000ULL
+
 #define HEAP_START      0xffffc00000000000ULL
 #define HEAP_END        0xffffc08000000000ULL
 

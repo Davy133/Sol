@@ -34,6 +34,7 @@ $(KERNEL_ARCH_OBJS) \
 core/kernel.o \
 core/log.o \
 core/panic.o \
+core/sched.o \
 drivers/tty.o \
 mm/heap.o \
 mm/pmm.o \

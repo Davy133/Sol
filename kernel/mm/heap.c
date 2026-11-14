@@ -1,3 +1,4 @@
+#include <asm/irq.h>
 #include <asm/layout.h>
 #include <asm/paging.h>
 #include <kernel/heap.h>
@@ -32,20 +33,17 @@ static void check_block(const struct heap_block *block)
         panic("heap corrupted");
 }
 
-/* Enough for the pages and, in the worst case, every table they could need. */
-static bool has_memory_for(uint64_t pages)
-{
-    return pmm_free_page_count() >= pages + pages / 256 + 4;
-}
-
-static void map_heap_page(uint64_t virt)
+static bool map_heap_page(uint64_t virt)
 {
     uint64_t phys = pmm_alloc_page();
 
     if (phys == 0)
-        panic("out of memory growing the heap");
+        return false;
+    if (paging_map_page(virt, phys, PAGE_WRITE | PAGE_NX))
+        return true;
 
-    paging_map_page(virt, phys, PAGE_WRITE | PAGE_NX);
+    pmm_free_page(phys);
+    return false;
 }
 
 /* Returns a free block of at least size bytes at the end of the heap, or NULL. */
@@ -55,11 +53,18 @@ static struct heap_block *grow_heap(size_t size)
 
     if (length < HEAP_GROW_MIN)
         length = HEAP_GROW_MIN;
-    if (length > HEAP_END - heap_end || !has_memory_for(length / PAGE_SIZE))
+    if (length > HEAP_END - heap_end || length / PAGE_SIZE > pmm_free_page_count())
         return NULL;
 
-    for (uint64_t offset = 0; offset < length; offset += PAGE_SIZE)
-        map_heap_page(heap_end + offset);
+    for (uint64_t offset = 0; offset < length; offset += PAGE_SIZE) {
+        if (!map_heap_page(heap_end + offset)) {
+            while (offset > 0) {
+                offset -= PAGE_SIZE;
+                pmm_free_page(paging_unmap_page(heap_end + offset));
+            }
+            return NULL;
+        }
+    }
 
     struct heap_block *block = last_block;
 
@@ -121,7 +126,7 @@ static void merge_with_next(struct heap_block *block)
     next->magic = 0;
 }
 
-void *kmalloc(size_t size)
+static void *heap_alloc(size_t size)
 {
     if (size == 0 || size > HEAP_END - HEAP_START)
         return NULL;
@@ -146,11 +151,37 @@ void *kmalloc(size_t size)
     return block + 1;
 }
 
+/* Keeps HEAP_GROW_MIN of free tail mapped, so alternating kmalloc() and kfree()
+   at the end does not map and unmap pages every time. */
+static void shrink_heap(void)
+{
+    struct heap_block *block = last_block;
+    uint64_t keep = ((uint64_t)(block + 1) + HEAP_GROW_MIN + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
+
+    if (block->magic != MAGIC_FREE || heap_end < keep + HEAP_GROW_MIN)
+        return;
+
+    while (heap_end > keep) {
+        heap_end -= PAGE_SIZE;
+        pmm_free_page(paging_unmap_page(heap_end));
+    }
+    block->size = keep - (uint64_t)(block + 1);
+}
+
+void *kmalloc(size_t size)
+{
+    uint64_t flags = irq_save();
+    void *pointer = heap_alloc(size);
+    irq_restore(flags);
+    return pointer;
+}
+
 void kfree(void *pointer)
 {
     if (pointer == NULL)
         return;
 
+    uint64_t flags = irq_save();
     uint64_t address = (uint64_t)pointer;
 
     if (address < HEAP_START || address >= heap_end || address % HEAP_ALIGN != 0)
@@ -173,9 +204,13 @@ void kfree(void *pointer)
         merge_with_next(block);
     if (block->prev != NULL && block->prev->magic == MAGIC_FREE)
         merge_with_next(block->prev);
+
+    shrink_heap();
+    irq_restore(flags);
 }
 
-/* Runs once at boot: exercises split, merge and reuse, and the page allocator. */
+/* Runs once at boot: exercises split, merge and reuse, running out of memory,
+   and the page allocator. */
 void heap_selftest(void)
 {
     void *a = kmalloc(100);
@@ -197,6 +232,32 @@ void heap_selftest(void)
         panic("heap self-test: heap did not return to one free block");
 
     uint64_t pages = pmm_free_page_count();
+    uint64_t end = heap_end;
+
+    if (kmalloc((pages + 1) * PAGE_SIZE) != NULL || pmm_free_page_count() != pages)
+        panic("heap self-test: allocated more memory than there is");
+
+    /* The data pages fit but the tables they need do not, so growth fails halfway.
+       Only the tables made before that may stay. */
+    if (kmalloc(pages * PAGE_SIZE - sizeof(struct heap_block)) != NULL)
+        panic("heap self-test: allocated the memory page tables needed");
+    if (heap_end != end || pages - pmm_free_page_count() > pages / 256 + 4)
+        panic("heap self-test: failed growth leaked pages");
+    if (first_block != last_block || first_block->magic != MAGIC_FREE)
+        panic("heap self-test: failed growth changed the heap");
+
+    /* Free pages plus heap pages stays the same while the heap grows and shrinks. */
+    pages = pmm_free_page_count();
+    void *big = kmalloc(1024 * 1024);
+
+    if (big == NULL)
+        panic("heap self-test: could not grow the heap");
+    kfree(big);
+    if (heap_end - HEAP_START > 2 * HEAP_GROW_MIN
+            || pmm_free_page_count() + heap_end / PAGE_SIZE != pages + end / PAGE_SIZE)
+        panic("heap self-test: freed memory was not returned");
+
+    pages = pmm_free_page_count();
     uint64_t page = pmm_alloc_page();
 
     if (page == 0 || pmm_free_page_count() != pages - 1)
