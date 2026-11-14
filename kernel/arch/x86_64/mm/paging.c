@@ -287,23 +287,27 @@ uint64_t paging_create_space(void)
     return phys;
 }
 
-bool paging_map_user(uint64_t space, uint64_t virt, const void *data, size_t size, uint64_t flags)
+bool paging_map_user(uint64_t space, uint64_t virt, size_t size, const void *data, size_t data_size, uint64_t flags)
 {
     if (!no_execute)
         flags &= ~PAGE_NX;
 
-    for (size_t offset = 0; offset < size; offset += PAGE_SIZE) {
+    for (uint64_t page = virt & ~(PAGE_SIZE - 1); page < virt + size; page += PAGE_SIZE) {
         uint64_t phys = pmm_alloc_page();
 
         if (phys == 0)
             return false;
 
-        void *page = phys_to_virt(phys);
-        memset(page, 0, PAGE_SIZE);
-        if (data != NULL)
-            memcpy(page, (const char *)data + offset, size - offset < PAGE_SIZE ? size - offset : PAGE_SIZE);
+        char *memory = (char *)phys_to_virt(phys);
+        memset(memory, 0, PAGE_SIZE);
 
-        if (!map_page(phys_to_virt(space), virt + offset, phys, flags | PAGE_PRESENT | PAGE_USER)) {
+        /* The part of [virt, virt + data_size) inside this page. */
+        uint64_t from = page > virt ? page : virt;
+        uint64_t to = page + PAGE_SIZE < virt + data_size ? page + PAGE_SIZE : virt + data_size;
+        if (from < to)
+            memcpy(memory + (from - page), (const char *)data + (from - virt), to - from);
+
+        if (!map_page(phys_to_virt(space), page, phys, flags | PAGE_PRESENT | PAGE_USER)) {
             pmm_free_page(phys);
             return false;
         }
@@ -352,7 +356,7 @@ void paging_switch(uint64_t space)
         asm volatile("mov %0, %%cr3" : : "r"(space) : "memory");
 }
 
-bool paging_user_accessible(uint64_t virt, uint64_t size)
+bool paging_user_accessible(uint64_t virt, uint64_t size, uint64_t flags)
 {
     uint64_t cr3;
     asm volatile("mov %%cr3, %0" : "=r"(cr3));
@@ -363,7 +367,9 @@ bool paging_user_accessible(uint64_t virt, uint64_t size)
     for (uint64_t page = virt & ~(PAGE_SIZE - 1); page < virt + size; page += PAGE_SIZE) {
         uint64_t *entry = find_entry(phys_to_virt(cr3 & PAGE_ADDRESS), page);
 
-        if (entry == NULL || (*entry & (PAGE_PRESENT | PAGE_USER)) != (PAGE_PRESENT | PAGE_USER))
+        uint64_t required = PAGE_PRESENT | PAGE_USER | flags;
+
+        if (entry == NULL || (*entry & required) != required)
             return false;
     }
 

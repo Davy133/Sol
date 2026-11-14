@@ -1,11 +1,12 @@
-#include <stdio.h>
 #include <stdint.h>
 #include <kernel/boot.h>
 #include <kernel/heap.h>
-#include <kernel/keyboard.h>
 #include <kernel/log.h>
+#include <kernel/panic.h>
 #include <kernel/sched.h>
 
+
+extern const char user_shell_start[], user_shell_end[];
 
 void kernel_main(const struct boot_info* info) {
 
@@ -28,18 +29,10 @@ void kernel_main(const struct boot_info* info) {
     sched_selftest();
     klog(KLOG_INFO, "Scheduler self-test passed");
 
-    for (;;) {
-        /* sti takes effect after the next instruction, so a key that arrives
-           after the check still wakes the hlt. */
-        asm volatile("cli");
-        int c = keyboard_getchar();
+    if (!process_create(user_shell_start, (uintptr_t)user_shell_end - (uintptr_t)user_shell_start))
+        panic("could not start init");
+    klog(KLOG_INFO, "Started init (the shell)");
 
-        if (c < 0) {
-            asm volatile("sti; hlt");
-            continue;
-        }
-
-        asm volatile("sti");
-        putchar(c);
-    }
+    sched_wait();
+    panic("Attempted to kill init!");
 }
