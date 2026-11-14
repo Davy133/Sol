@@ -53,7 +53,7 @@ static struct heap_block *grow_heap(size_t size)
 
     if (length < HEAP_GROW_MIN)
         length = HEAP_GROW_MIN;
-    if (length > HEAP_END - heap_end)
+    if (length > HEAP_END - heap_end || length / PAGE_SIZE > pmm_free_page_count())
         return NULL;
 
     for (uint64_t offset = 0; offset < length; offset += PAGE_SIZE) {
@@ -231,19 +231,23 @@ void heap_selftest(void)
     if (first_block != last_block || first_block->magic != MAGIC_FREE)
         panic("heap self-test: heap did not return to one free block");
 
-    /* The first try leaves page tables behind, which the second one reuses. */
-    if (kmalloc(1ULL << 30) != NULL)
+    uint64_t pages = pmm_free_page_count();
+    uint64_t end = heap_end;
+
+    if (kmalloc((pages + 1) * PAGE_SIZE) != NULL || pmm_free_page_count() != pages)
         panic("heap self-test: allocated more memory than there is");
 
-    uint64_t pages = pmm_free_page_count();
-
-    if (kmalloc(1ULL << 30) != NULL || pmm_free_page_count() != pages)
+    /* The data pages fit but the tables they need do not, so growth fails halfway.
+       Only the tables made before that may stay. */
+    if (kmalloc(pages * PAGE_SIZE - sizeof(struct heap_block)) != NULL)
+        panic("heap self-test: allocated the memory page tables needed");
+    if (heap_end != end || pages - pmm_free_page_count() > pages / 256 + 4)
         panic("heap self-test: failed growth leaked pages");
     if (first_block != last_block || first_block->magic != MAGIC_FREE)
         panic("heap self-test: failed growth changed the heap");
 
     /* Free pages plus heap pages stays the same while the heap grows and shrinks. */
-    uint64_t end = heap_end;
+    pages = pmm_free_page_count();
     void *big = kmalloc(1024 * 1024);
 
     if (big == NULL)

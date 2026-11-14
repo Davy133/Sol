@@ -142,16 +142,20 @@ void syscall_handler(registers_t *regs)
     case SYS_EXIT:
         task_exit();
 
-    case SYS_WRITE:
-        if (!paging_user_accessible(regs->rdi, regs->rsi)) {
+    case SYS_WRITE: {
+        /* Interrupts are off in here, so a long write would stall everything. */
+        uint64_t length = regs->rsi < PAGE_SIZE ? regs->rsi : PAGE_SIZE;
+
+        if (!paging_user_accessible(regs->rdi, length)) {
             regs->rax = -1;
             return;
         }
 
-        for (uint64_t i = 0; i < regs->rsi; i++)
+        for (uint64_t i = 0; i < length; i++)
             putchar(((const char *)regs->rdi)[i]);
-        regs->rax = regs->rsi;
+        regs->rax = length;
         return;
+    }
 
     default:
         regs->rax = -1;
@@ -181,7 +185,7 @@ static void run_test_tasks(void)
         asm volatile("hlt" ::: "memory");
 }
 
-/* The first round may grow the heap, which never shrinks; the second must not. */
+/* The first round may create page tables, which stay for reuse; the second must not. */
 void sched_selftest(void)
 {
     run_test_tasks();

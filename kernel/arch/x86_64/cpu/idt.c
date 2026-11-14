@@ -1,3 +1,4 @@
+#include <stdbool.h>
 #include <asm/dump.h>
 #include <asm/gdt.h>
 #include <asm/idt.h>
@@ -98,6 +99,12 @@ void irq_register_handler(uint8_t irq, irq_handler_t handler) {
         irq_handlers[irq] = handler;
 }
 
+/* Debug, NMI, double fault and machine check are not the process's doing. */
+static bool user_caused(uint64_t vector)
+{
+    return vector != 1 && vector != 2 && vector != 8 && vector != 18;
+}
+
 void isr_handler(registers_t *regs)
 {
     if (regs->int_no == SYSCALL_VECTOR) {
@@ -105,7 +112,7 @@ void isr_handler(registers_t *regs)
         return;
     }
 
-    if (regs->cs & 3) {
+    if ((regs->cs & 3) && user_caused(regs->int_no)) {
         klog(KLOG_WARN, "%s in user mode at 0x%lx, killing the process",
              exception_messages[regs->int_no], regs->rip);
         task_exit();
