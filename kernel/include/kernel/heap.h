@@ -3,8 +3,8 @@
 
 #include <stddef.h>
 
-/* Memory is 16-byte aligned and not cleared. Needs paging_init(). Not safe in
-   interrupt handlers yet. */
+/* Memory is 16-byte aligned and not cleared. Needs paging_init(). Runs with
+   interrupts off, so tasks can share it. */
 
 /* Returns NULL when size is 0 or memory runs out. */
 void* kmalloc(size_t size);

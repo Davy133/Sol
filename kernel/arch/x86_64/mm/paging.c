@@ -1,6 +1,7 @@
 #include <asm/layout.h>
 #include <asm/paging.h>
 #include <cpuid.h>
+#include <kernel/log.h>
 #include <kernel/panic.h>
 #include <kernel/pmm.h>
 #include <stdbool.h>
@@ -21,6 +22,9 @@
 #define MSR_EFER        0xc0000080
 #define EFER_NXE        (1ULL << 11)
 #define CPUID_NX        (1U << 20)
+#define CPUID_SMEP      (1U << 7)
+#define CR4_SMEP        (1ULL << 20)
+#define CR4_SMAP        (1ULL << 21)
 
 /* WB, WT, UC-, UC, WP, WC, UC-, UC: the power-on layout with WC added. */
 #define PAT_VALUE       0x0007010500070406ULL
@@ -31,6 +35,7 @@ extern char __kernel_start[], __text_start[], __rodata_start[], __data_start[], 
 static struct boot_info *boot;
 static uint64_t no_execute;
 static uint64_t *kernel_pml4;
+static uint64_t kernel_space;
 static bool pmm_ready;
 
 /* The map as the bootloader gave it. alloc_table() shrinks the live one, and
@@ -77,25 +82,29 @@ static uint64_t alloc_page(void)
     if (!pmm_ready)
         return alloc_boot_page();
 
-    uint64_t address = pmm_alloc_page();
-    if (address == 0)
-        panic("out of memory for page tables");
-    return address;
+    return pmm_alloc_page();
 }
 
+/* 0 when memory runs out, which only happens after boot. */
 static uint64_t alloc_table(void)
 {
     uint64_t address = alloc_page();
 
-    memset(phys_to_virt(address), 0, PAGE_SIZE);
+    if (address != 0)
+        memset(phys_to_virt(address), 0, PAGE_SIZE);
     return address;
 }
 
 /* Every level has to allow user access, so PAGE_USER reaches existing tables too. */
 static uint64_t *next_table(uint64_t *table, size_t index, uint64_t user)
 {
-    if (!(table[index] & PAGE_PRESENT))
-        table[index] = alloc_table() | PAGE_PRESENT | PAGE_WRITE;
+    if (!(table[index] & PAGE_PRESENT)) {
+        uint64_t address = alloc_table();
+
+        if (address == 0)
+            return NULL;
+        table[index] = address | PAGE_PRESENT | PAGE_WRITE;
+    }
     if (table[index] & PAGE_LARGE)
         panic("mapping inside a large page");
 
@@ -104,18 +113,24 @@ static uint64_t *next_table(uint64_t *table, size_t index, uint64_t user)
 }
 
 /* Permissions live in the last level; the ones above allow everything. */
-static void map_page(uint64_t *pml4, uint64_t virt, uint64_t phys, uint64_t flags)
+/* False when a table cannot be allocated; tables made on the way stay for reuse. */
+static bool map_page(uint64_t *pml4, uint64_t virt, uint64_t phys, uint64_t flags)
 {
     uint64_t user = flags & PAGE_USER;
-    uint64_t *pdpt = next_table(pml4, (virt >> 39) & (PAGE_ENTRIES - 1), user);
-    uint64_t *pd = next_table(pdpt, (virt >> 30) & (PAGE_ENTRIES - 1), user);
-    uint64_t *pt = next_table(pd, (virt >> 21) & (PAGE_ENTRIES - 1), user);
-    uint64_t *entry = &pt[(virt >> 12) & (PAGE_ENTRIES - 1)];
+    uint64_t *table = pml4;
+
+    for (int shift = 39; shift > 12 && table != NULL; shift -= 9)
+        table = next_table(table, (virt >> shift) & (PAGE_ENTRIES - 1), user);
+    if (table == NULL)
+        return false;
+
+    uint64_t *entry = &table[(virt >> 12) & (PAGE_ENTRIES - 1)];
     bool replaced = *entry & PAGE_PRESENT;
 
     *entry = phys | flags;
     if (replaced)
         asm volatile("invlpg (%0)" : : "r"(virt) : "memory");
+    return true;
 }
 
 static void map_large_page(uint64_t *pml4, uint64_t virt, uint64_t phys, uint64_t flags)
@@ -202,17 +217,34 @@ static void enable_no_execute(void)
     no_execute = PAGE_NX;
 }
 
+/* SMAP stays off, or the kernel could not read syscall buffers. */
+static void set_user_protection(void)
+{
+    uint32_t eax, ebx, ecx, edx;
+    uint64_t cr4;
+
+    asm volatile("mov %%cr4, %0" : "=r"(cr4));
+    cr4 &= ~CR4_SMAP;
+    if (__get_cpuid_count(7, 0, &eax, &ebx, &ecx, &edx) && (ebx & CPUID_SMEP)) {
+        cr4 |= CR4_SMEP;
+        klog(KLOG_INFO, "SMEP enabled");
+    }
+    asm volatile("mov %0, %%cr4" : : "r"(cr4));
+}
+
 void paging_init(struct boot_info *info)
 {
     boot = info;
     memcpy(regions, info->memory_regions, sizeof(regions));
     enable_no_execute();
+    set_user_protection();
     wrmsr(MSR_PAT, PAT_VALUE);
 
     uint64_t pml4_phys = alloc_table();
     uint64_t *pml4 = phys_to_virt(pml4_phys);
 
     kernel_pml4 = pml4;
+    kernel_space = pml4_phys;
 
     /* The heap's PML4 entry must exist before anything copies this PML4. */
     next_table(pml4, (HEAP_START >> 39) & (PAGE_ENTRIES - 1), 0);
@@ -232,21 +264,121 @@ void paging_init(struct boot_info *info)
     pmm_ready = true;
 }
 
-void paging_map_page(uint64_t virt, uint64_t phys, uint64_t flags)
+bool paging_map_page(uint64_t virt, uint64_t phys, uint64_t flags)
+{
+    if (!(kernel_pml4[(virt >> 39) & (PAGE_ENTRIES - 1)] & PAGE_PRESENT))
+        panic("kernel mapping outside the PML4 entries every space shares");
+    if (!no_execute)
+        flags &= ~PAGE_NX;
+
+    return map_page(kernel_pml4, virt, phys, flags | PAGE_PRESENT);
+}
+
+uint64_t paging_create_space(void)
+{
+    uint64_t phys = pmm_alloc_page();
+
+    if (phys == 0)
+        return 0;
+
+    uint64_t *pml4 = phys_to_virt(phys);
+    memset(pml4, 0, PAGE_SIZE / 2);
+    memcpy(pml4 + PAGE_ENTRIES / 2, kernel_pml4 + PAGE_ENTRIES / 2, PAGE_SIZE / 2);
+    return phys;
+}
+
+bool paging_map_user(uint64_t space, uint64_t virt, const void *data, size_t size, uint64_t flags)
 {
     if (!no_execute)
         flags &= ~PAGE_NX;
 
-    map_page(kernel_pml4, virt, phys, flags | PAGE_PRESENT);
+    for (size_t offset = 0; offset < size; offset += PAGE_SIZE) {
+        uint64_t phys = pmm_alloc_page();
+
+        if (phys == 0)
+            return false;
+
+        void *page = phys_to_virt(phys);
+        memset(page, 0, PAGE_SIZE);
+        if (data != NULL)
+            memcpy(page, (const char *)data + offset, size - offset < PAGE_SIZE ? size - offset : PAGE_SIZE);
+
+        if (!map_page(phys_to_virt(space), virt + offset, phys, flags | PAGE_PRESENT | PAGE_USER)) {
+            pmm_free_page(phys);
+            return false;
+        }
+    }
+
+    return true;
 }
 
-void paging_unmap_page(uint64_t virt)
+/* Level 1 is a page table, whose entries are the user's own pages. */
+static void free_table(uint64_t phys, int level)
+{
+    uint64_t *table = phys_to_virt(phys);
+
+    for (size_t i = 0; i < PAGE_ENTRIES; i++) {
+        if (!(table[i] & PAGE_PRESENT))
+            continue;
+        if (level > 1)
+            free_table(table[i] & PAGE_ADDRESS, level - 1);
+        else
+            pmm_free_page(table[i] & PAGE_ADDRESS);
+    }
+
+    pmm_free_page(phys);
+}
+
+void paging_destroy_space(uint64_t space)
+{
+    uint64_t *pml4 = phys_to_virt(space);
+
+    for (size_t i = 0; i < PAGE_ENTRIES / 2; i++)
+        if (pml4[i] & PAGE_PRESENT)
+            free_table(pml4[i] & PAGE_ADDRESS, 3);
+
+    pmm_free_page(space);
+}
+
+void paging_switch(uint64_t space)
+{
+    uint64_t cr3;
+
+    if (space == 0)
+        space = kernel_space;
+
+    asm volatile("mov %%cr3, %0" : "=r"(cr3));
+    if (cr3 != space)
+        asm volatile("mov %0, %%cr3" : : "r"(space) : "memory");
+}
+
+bool paging_user_accessible(uint64_t virt, uint64_t size)
+{
+    uint64_t cr3;
+    asm volatile("mov %%cr3, %0" : "=r"(cr3));
+
+    if (virt + size < virt || virt + size > USER_END)
+        return false;
+
+    for (uint64_t page = virt & ~(PAGE_SIZE - 1); page < virt + size; page += PAGE_SIZE) {
+        uint64_t *entry = find_entry(phys_to_virt(cr3 & PAGE_ADDRESS), page);
+
+        if (entry == NULL || (*entry & (PAGE_PRESENT | PAGE_USER)) != (PAGE_PRESENT | PAGE_USER))
+            return false;
+    }
+
+    return true;
+}
+
+uint64_t paging_unmap_page(uint64_t virt)
 {
     uint64_t *entry = find_entry(kernel_pml4, virt);
 
     if (entry == NULL || !(*entry & PAGE_PRESENT))
-        return;
+        return 0;
 
+    uint64_t phys = *entry & PAGE_ADDRESS;
     *entry = 0;
     asm volatile("invlpg (%0)" : : "r"(virt) : "memory");
+    return phys;
 }

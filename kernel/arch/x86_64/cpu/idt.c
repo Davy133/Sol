@@ -2,6 +2,8 @@
 #include <asm/gdt.h>
 #include <asm/idt.h>
 #include <asm/pic.h>
+#include <kernel/log.h>
+#include <kernel/sched.h>
 
 #define VECTOR_DOUBLE_FAULT 8
 
@@ -76,6 +78,7 @@ void idt_init(void)
 
     /* The current stack may be what caused a double fault. */
     idt[VECTOR_DOUBLE_FAULT].ist = TSS_IST_DOUBLE_FAULT;
+    idt_set_gate(SYSCALL_VECTOR, (uint64_t)isr128, GDT_KERNEL_CODE << 3, IDT_USER_INT_GATE);
 
     pic_init();
 
@@ -97,6 +100,17 @@ void irq_register_handler(uint8_t irq, irq_handler_t handler) {
 
 void isr_handler(registers_t *regs)
 {
+    if (regs->int_no == SYSCALL_VECTOR) {
+        syscall_handler(regs);
+        return;
+    }
+
+    if (regs->cs & 3) {
+        klog(KLOG_WARN, "%s in user mode at 0x%lx, killing the process",
+             exception_messages[regs->int_no], regs->rip);
+        task_exit();
+    }
+
     panic_exception(regs, exception_messages[regs->int_no]);
 }
 

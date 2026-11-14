@@ -1,3 +1,4 @@
+#include <asm/irq.h>
 #include <kernel/panic.h>
 #include <kernel/pmm.h>
 #include <stdbool.h>
@@ -92,6 +93,9 @@ void pmm_init(const struct boot_info *info)
 
 uint64_t pmm_alloc_page(void)
 {
+    uint64_t flags = irq_save();
+    uint64_t address = 0;
+
     for (size_t i = 0; i < word_count; i++) {
         size_t word = (next_word + i) % word_count;
 
@@ -101,15 +105,19 @@ uint64_t pmm_alloc_page(void)
         uint64_t page = word * BITS_PER_WORD + __builtin_ctzll(~bitmap[word]);
         mark_used(page);
         next_word = word;
-        return page * PAGE_SIZE;
+        address = page * PAGE_SIZE;
+        break;
     }
 
-    return 0;
+    irq_restore(flags);
+    return address;
 }
 
 void pmm_free_page(uint64_t address)
 {
     uint64_t page = address / PAGE_SIZE;
+
+    uint64_t flags = irq_save();
 
     if (address % PAGE_SIZE != 0 || page >= page_count || !page_is_used(page))
         panic("bad physical page freed");
@@ -117,6 +125,8 @@ void pmm_free_page(uint64_t address)
     mark_free(page);
     if (page / BITS_PER_WORD < next_word)
         next_word = page / BITS_PER_WORD;
+
+    irq_restore(flags);
 }
 
 uint64_t pmm_free_page_count(void)
