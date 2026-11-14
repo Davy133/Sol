@@ -61,10 +61,8 @@ size_t klog_count(void);
  */
 bool klog_read(size_t index, struct klog_entry* entry);
 
-/*
- * Internal: used by putchar() to capture output while klog() is formatting.
- * Returns false when no entry is active and the caller should write directly.
- */
-bool klog_write_char(char c);
+/* Used by putchar(): stores the character in the entry klog() is formatting,
+   if any, and sends it to the terminal and the serial port. */
+void klog_write_char(char c);
 
 #endif

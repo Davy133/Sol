@@ -188,33 +188,35 @@ void klog(enum klog_level level, const char* format, ...) {
     va_end(arguments);
 }
 
-/*
- * Captures the formatted output of the active log entry.
- * The complete output is still sent to the configured destinations,
- * even if the stored message reaches its maximum capacity.
- */
-bool klog_write_char(char c) {
-    if (active_entry == NULL)
-        return false;
+/* Interrupts stay off so an interrupt handler that prints cannot re-enter the terminal. */
+void klog_write_char(char c) {
+    uint64_t flags = irq_save();
+    bool to_terminal = true;
+    bool to_serial = true;
 
-    if (active_length < KLOG_MESSAGE_MAX - 1) {
-        active_entry->message[active_length++] = c;
-        active_entry->message[active_length] = '\0';
-    } else {
-        active_entry->truncated = true;
+    if (active_entry != NULL) {
+        if (active_length < KLOG_MESSAGE_MAX - 1) {
+            active_entry->message[active_length++] = c;
+            active_entry->message[active_length] = '\0';
+        } else {
+            active_entry->truncated = true;
+        }
+
+        to_terminal = active_entry->level >= terminal_min_level;
+        to_serial = active_entry->level >= serial_min_level;
     }
 
-    if (active_entry->level >= terminal_min_level)
+    if (to_terminal)
         terminal_putchar(c);
 
-    if (active_entry->level >= serial_min_level) {
+    if (to_serial) {
         if (c == '\n')
             serial_write('\r');
 
         serial_write(c);
     }
 
-    return true;
+    irq_restore(flags);
 }
 
 /*
