@@ -23,10 +23,12 @@ uint64_t paging_unmap_page(uint64_t virt);
 
 /* A new address space sharing the kernel half; 0 when memory runs out. */
 uint64_t paging_create_space(void);
-/* Maps fresh zeroed pages holding a copy of data, which may be NULL. */
-bool paging_map_user(uint64_t space, uint64_t virt, const void* data, size_t size, uint64_t flags);
-/* Whether the current address space lets user mode reach every byte of the range. */
-bool paging_user_accessible(uint64_t virt, uint64_t size);
+/* Maps fresh zeroed pages over every page [virt, virt + size) touches and copies
+   data_size bytes of data to virt. The caller checks the range is user memory. */
+bool paging_map_user(uint64_t space, uint64_t virt, size_t size, const void* data, size_t data_size, uint64_t flags);
+/* Whether the current address space lets user mode reach every byte of the
+   range with flags (0, or PAGE_WRITE to also write it). */
+bool paging_user_accessible(uint64_t virt, uint64_t size, uint64_t flags);
 /* Frees the space with every user page and table in it. It must not be loaded. */
 void paging_destroy_space(uint64_t space);
 /* 0 is the kernel's own space. */

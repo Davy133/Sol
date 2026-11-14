@@ -1,3 +1,4 @@
 *.d
+*.elf
 *.kernel
 *.o

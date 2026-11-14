@@ -33,6 +33,7 @@ KERNEL_OBJS=\
 $(KERNEL_ARCH_OBJS) \
 core/kernel.o \
 core/log.o \
+core/elf.o \
 core/panic.o \
 core/sched.o \
 drivers/tty.o \
@@ -61,8 +62,13 @@ sol.kernel: $(OBJS) $(KERNEL_LINKER_SCRIPT)
 .asm.o:
 	$(NASM) $(NASMFLAGS) -MD $(@:.o=.d) $< -o $@
 
+$(ARCHDIR)/user/programs.o: $(USER_PROGRAMS)
+
+%.elf: %.c
+	$(CC) -MD -o $@ $< $(USER_CFLAGS)
+
 clean:
-	rm -f sol.kernel
+	rm -f sol.kernel $(USER_PROGRAMS)
 	rm -f $(OBJS) *.o */*.o */*/*.o */*/*/*.o */*/*/*/*.o
 	rm -f $(OBJS:.o=.d) *.d */*.d */*/*.d */*/*/*.d */*/*/*/*.d */*/*/*.asm.d
 
@@ -77,3 +83,4 @@ install-kernel: sol.kernel
 	cp sol.kernel $(DESTDIR)$(BOOTDIR)
 
 -include $(OBJS:.o=.d)
+-include $(USER_PROGRAMS:.elf=.d)

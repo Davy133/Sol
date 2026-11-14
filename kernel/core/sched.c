@@ -2,7 +2,9 @@
 #include <asm/irq.h>
 #include <asm/layout.h>
 #include <asm/paging.h>
+#include <kernel/elf.h>
 #include <kernel/heap.h>
+#include <kernel/keyboard.h>
 #include <kernel/panic.h>
 #include <kernel/pmm.h>
 #include <kernel/sched.h>
@@ -14,6 +16,7 @@
 
 #define SYS_EXIT        0
 #define SYS_WRITE       1
+#define SYS_READ        2
 
 /* A circular list; boot_task never exits, so it always has one task to run. */
 struct task {
@@ -90,25 +93,23 @@ bool task_create(void (*entry)(void))
     return true;
 }
 
-bool process_create(const void *code, size_t size)
+bool process_create(const void *elf, size_t size)
 {
-    if (size > USER_STACK_TOP - PAGE_SIZE - USER_CODE)
-        return false;
-
     struct task *task = task_alloc();
 
     if (task == NULL)
         return false;
 
     task->cr3 = paging_create_space();
-    if (task->cr3 == 0
-            || !paging_map_user(task->cr3, USER_CODE, code, size, PAGE_WRITE)
-            || !paging_map_user(task->cr3, USER_STACK_TOP - PAGE_SIZE, NULL, PAGE_SIZE, PAGE_WRITE | PAGE_NX)) {
+    uint64_t entry = task->cr3 != 0 ? elf_load(task->cr3, elf, size) : 0;
+
+    if (entry == 0
+            || !paging_map_user(task->cr3, USER_STACK_TOP - PAGE_SIZE, PAGE_SIZE, NULL, 0, PAGE_WRITE | PAGE_NX)) {
         task_free(task);
         return false;
     }
 
-    task->regs.rip = USER_CODE;
+    task->regs.rip = entry;
     task->regs.cs = GDT_USER_CODE << 3 | 3;
     task->regs.rsp = USER_STACK_TOP;
     task->regs.ss = GDT_USER_DATA << 3 | 3;
@@ -146,7 +147,7 @@ void syscall_handler(registers_t *regs)
         /* Interrupts are off in here, so a long write would stall everything. */
         uint64_t length = regs->rsi < PAGE_SIZE ? regs->rsi : PAGE_SIZE;
 
-        if (!paging_user_accessible(regs->rdi, length)) {
+        if (!paging_user_accessible(regs->rdi, length, 0)) {
             regs->rax = -1;
             return;
         }
@@ -157,13 +158,52 @@ void syscall_handler(registers_t *regs)
         return;
     }
 
+    case SYS_READ: {
+        /* Blocks for one key, then also takes the keys already typed. */
+        char *buffer = (char *)regs->rdi;
+        uint64_t length = regs->rsi < PAGE_SIZE ? regs->rsi : PAGE_SIZE;
+        uint64_t count = 0;
+        int c;
+
+        if (!paging_user_accessible(regs->rdi, length, PAGE_WRITE)) {
+            regs->rax = -1;
+            return;
+        }
+        if (length == 0) {
+            regs->rax = 0;
+            return;
+        }
+
+        /* sti takes effect once hlt has started, so a key arriving after the
+           check still wakes it.
+           shortcut: halts through its time slices; use a wait queue once tasks can block. */
+        while ((c = keyboard_getchar()) < 0)
+            asm volatile("sti; hlt; cli" ::: "memory");
+
+        do
+            buffer[count++] = (char)c;
+        while (count < length && (c = keyboard_getchar()) >= 0);
+
+        regs->rax = count;
+        return;
+    }
+
     default:
         regs->rax = -1;
     }
 }
 
+void sched_wait(void)
+{
+    while (boot_task.next != &boot_task)
+        asm volatile("hlt" ::: "memory");
+}
+
 extern const char user_hello_start[], user_hello_end[];
-extern const char user_fault_start[], user_fault_end[];
+extern const char user_fault_kernel_start[], user_fault_kernel_end[];
+extern const char user_fault_code_start[], user_fault_code_end[];
+
+#define PROGRAM(name) user_##name##_start, (uintptr_t)user_##name##_end - (uintptr_t)user_##name##_start
 
 static volatile bool test_ran;
 
@@ -177,12 +217,20 @@ static void run_test_tasks(void)
     test_ran = false;
 
     if (!task_create(test_task)
-            || !process_create(user_hello_start, (uint64_t)user_hello_end - (uint64_t)user_hello_start)
-            || !process_create(user_fault_start, (uint64_t)user_fault_end - (uint64_t)user_fault_start))
-        panic("scheduler self-test: no memory for a task");
+            || !process_create(PROGRAM(hello))
+            || !process_create(PROGRAM(fault_kernel))
+            || !process_create(PROGRAM(fault_code)))
+        panic("scheduler self-test: could not start a task");
 
-    while (!test_ran || boot_task.next != &boot_task)
-        asm volatile("hlt" ::: "memory");
+    /* 0x2010 cuts hello's third segment short after two are mapped, so the
+       leak check also covers a load that fails halfway. */
+    if (process_create(user_hello_start, sizeof(Elf64_Ehdr) - 1)
+            || process_create(user_hello_start, 0x2010))
+        panic("scheduler self-test: a truncated ELF was loaded");
+
+    sched_wait();
+    if (!test_ran)
+        panic("scheduler self-test: a kernel task never ran");
 }
 
 /* The first round may create page tables, which stay for reuse; the second must not. */
