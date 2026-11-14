@@ -21,11 +21,17 @@ void kernel_main(const struct boot_info* info) {
          usable / (1024 * 1024), info->physmap_offset);
 
     for (;;) {
-        int c;
+        /* sti takes effect after the next instruction, so a key that arrives
+           after the check still wakes the hlt. */
+        asm volatile("cli");
+        int c = keyboard_getchar();
 
-        while ((c = keyboard_getchar()) >= 0)
-            putchar(c);
+        if (c < 0) {
+            asm volatile("sti; hlt");
+            continue;
+        }
 
-        asm volatile("hlt");
+        asm volatile("sti");
+        putchar(c);
     }
 }
