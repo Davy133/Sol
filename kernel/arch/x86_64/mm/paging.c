@@ -10,6 +10,10 @@
 #define PAGE_ENTRIES    512
 #define PAGE_ADDRESS    0x000ffffffffff000ULL
 
+/* In a page directory entry: it maps 2 MiB itself instead of pointing to a table. */
+#define PAGE_LARGE      (1ULL << 7)
+#define LARGE_PAGE_SIZE 0x200000ULL
+
 /* Selects PAT entry 5, write-combining in PAT_VALUE. */
 #define PAGE_WC         (PAGE_PAT | PAGE_PWT)
 
@@ -92,6 +96,8 @@ static uint64_t *next_table(uint64_t *table, size_t index, uint64_t user)
 {
     if (!(table[index] & PAGE_PRESENT))
         table[index] = alloc_table() | PAGE_PRESENT | PAGE_WRITE;
+    if (table[index] & PAGE_LARGE)
+        panic("mapping inside a large page");
 
     table[index] |= user;
     return phys_to_virt(table[index] & PAGE_ADDRESS);
@@ -112,7 +118,15 @@ static void map_page(uint64_t *pml4, uint64_t virt, uint64_t phys, uint64_t flag
         asm volatile("invlpg (%0)" : : "r"(virt) : "memory");
 }
 
-/* NULL when a level on the way to virt does not exist. */
+static void map_large_page(uint64_t *pml4, uint64_t virt, uint64_t phys, uint64_t flags)
+{
+    uint64_t *pdpt = next_table(pml4, (virt >> 39) & (PAGE_ENTRIES - 1), 0);
+    uint64_t *pd = next_table(pdpt, (virt >> 30) & (PAGE_ENTRIES - 1), 0);
+
+    pd[(virt >> 21) & (PAGE_ENTRIES - 1)] = phys | flags | PAGE_LARGE;
+}
+
+/* NULL when a level on the way to virt does not exist or is a large page. */
 static uint64_t *find_entry(uint64_t *pml4, uint64_t virt)
 {
     uint64_t *table = pml4;
@@ -120,7 +134,7 @@ static uint64_t *find_entry(uint64_t *pml4, uint64_t virt)
     for (int shift = 39; shift > 12; shift -= 9) {
         uint64_t entry = table[(virt >> shift) & (PAGE_ENTRIES - 1)];
 
-        if (!(entry & PAGE_PRESENT))
+        if (!(entry & PAGE_PRESENT) || (entry & PAGE_LARGE))
             return NULL;
         table = phys_to_virt(entry & PAGE_ADDRESS);
     }
@@ -153,11 +167,26 @@ static void map_physical_memory(uint64_t *pml4)
         if (region.type == BOOT_MEMORY_RESERVED || region.type == BOOT_MEMORY_BAD)
             continue;
 
-        uint64_t flags = region.type == BOOT_MEMORY_FRAMEBUFFER ? data | PAGE_WC : data;
-        uint64_t start = region.base & ~(PAGE_SIZE - 1);
+        bool framebuffer = region.type == BOOT_MEMORY_FRAMEBUFFER;
+        uint64_t flags = framebuffer ? data | PAGE_WC : data;
+        uint64_t address = region.base & ~(PAGE_SIZE - 1);
         uint64_t end = (region.base + region.length + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
 
-        map_range(pml4, start + boot->physmap_offset, start, end - start, flags);
+        /* A large page must lie inside the region itself, not its rounded
+           bounds, or a neighbour's 4 KiB page would land inside it. The
+           framebuffer stays out: PAGE_PAT sits at another bit in large pages. */
+        while (address < end) {
+            uint64_t virt = address + boot->physmap_offset;
+
+            if (!framebuffer && (address | virt) % LARGE_PAGE_SIZE == 0 && address >= region.base
+                    && address + LARGE_PAGE_SIZE <= region.base + region.length) {
+                map_large_page(pml4, virt, address, flags);
+                address += LARGE_PAGE_SIZE;
+            } else {
+                map_page(pml4, virt, address, flags);
+                address += PAGE_SIZE;
+            }
+        }
     }
 }
 
