@@ -51,9 +51,7 @@ ISR_ERRCODE   29
 ISR_ERRCODE   30
 ISR_NOERRCODE 31
 
-; ---------------------------------------------------------------------------
-; IRQ stubs (IRQ 0-15 -> IDT entries 32-47)
-; ---------------------------------------------------------------------------
+; IRQ 0-15 -> IDT entries 32-47
 %macro IRQ 2
 global irq%1
 irq%1:
@@ -115,7 +113,6 @@ IRQ 15, 47
     pop rcx
     pop rax
 %endmacro
-
 
 isr_common_stub:
     SAVE_REGISTERS

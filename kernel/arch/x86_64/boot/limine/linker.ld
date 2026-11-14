@@ -1,6 +1,5 @@
 OUTPUT_FORMAT(elf64-x86-64)
 
-/* Limine jumps to the symbol designated at the entry point. */
 ENTRY(_start)
 
 /* Each segment gets its own permissions; paging_init() needs the symbols below. */
@@ -36,7 +35,6 @@ SECTIONS
 
 	. = ALIGN(CONSTANT(MAXPAGESIZE));
 
-	/* Read-only data. */
 	__rodata_start = .;
 	.rodata :
 	{
@@ -45,15 +43,13 @@ SECTIONS
 
 	. = ALIGN(CONSTANT(MAXPAGESIZE));
 
-	/* Read-write data (initialized) */
 	__data_start = .;
 	.data :
 	{
 		*(.data .data.*)
 	} :data
 
-	/* Read-write data (uninitialized). Must stay last in the data segment, or
-	   its zeros are written to the file. */
+	/* Must stay last in the data segment, or its zeros are written to the file. */
 	.bss :
 	{
 		*(COMMON)

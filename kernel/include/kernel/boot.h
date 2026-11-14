@@ -4,14 +4,9 @@
 #include <stddef.h>
 #include <stdint.h>
 
-/*
- * What a boot adapter (arch/<arch>/boot/<bootloader>/) owes the kernel. Only the
- * adapter knows which bootloader ran; everything past arch_start() uses this.
- *
- * Before calling arch_start() the adapter must leave the CPU in 64-bit mode with
- * interrupts off, a valid stack, the kernel mapped at its link address and all
- * physical memory mapped at physmap_offset.
- */
+/* What a boot adapter (arch/<arch>/boot/<bootloader>/) owes the kernel. Before
+   arch_start() it must leave the CPU in 64-bit mode with interrupts off, a valid
+   stack, the kernel at its link address and all physical memory at physmap_offset. */
 
 #define BOOT_MAX_MEMORY_REGIONS 256
 

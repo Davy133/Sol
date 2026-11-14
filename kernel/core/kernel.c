@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <kernel/boot.h>
+#include <kernel/heap.h>
+#include <kernel/keyboard.h>
 #include <kernel/log.h>
 
 
@@ -18,4 +20,22 @@ void kernel_main(const struct boot_info* info) {
     klog(KLOG_DEBUG,
          "Usable memory: %lu MiB, physical memory mapped at 0x%lx",
          usable / (1024 * 1024), info->physmap_offset);
+
+    heap_selftest();
+    klog(KLOG_INFO, "Memory self-test passed");
+
+    for (;;) {
+        /* sti takes effect after the next instruction, so a key that arrives
+           after the check still wakes the hlt. */
+        asm volatile("cli");
+        int c = keyboard_getchar();
+
+        if (c < 0) {
+            asm volatile("sti; hlt");
+            continue;
+        }
+
+        asm volatile("sti");
+        putchar(c);
+    }
 }

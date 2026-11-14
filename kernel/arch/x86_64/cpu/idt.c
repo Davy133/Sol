@@ -77,7 +77,6 @@ void idt_init(void)
     /* The current stack may be what caused a double fault. */
     idt[VECTOR_DOUBLE_FAULT].ist = TSS_IST_DOUBLE_FAULT;
 
-    /* Remap PIC and register IRQ gates (32–47) */
     pic_init();
 
     static void (*irq_stubs[16])(void) = {

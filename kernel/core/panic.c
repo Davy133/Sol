@@ -4,10 +4,8 @@
 #include <kernel/pit.h>
 #include <kernel/serial.h>
 
-#include "../drivers/font8x8_basic.h"
+#include "../drivers/fb.h"
 
-#define GLYPH_SIZE      16      /* 8x8 font drawn at twice its size */
-#define GLYPH_SCALE     2
 #define MARGIN          2       /* In characters */
 
 /* The blinking box around the title, in characters; the report starts below it. */
@@ -28,19 +26,6 @@ static size_t column, row;
 static uint32_t foreground, background;
 static bool panicking;
 
-static uint32_t channel(uint8_t value, uint8_t size, uint8_t shift)
-{
-    uint64_t max = ((uint64_t)1 << size) - 1;
-    return (uint32_t)((value * max / 255) << shift);
-}
-
-static uint32_t color(uint8_t red, uint8_t green, uint8_t blue)
-{
-    return channel(red, screen.red_size, screen.red_shift)
-         | channel(green, screen.green_size, screen.green_shift)
-         | channel(blue, screen.blue_size, screen.blue_shift);
-}
-
 void panic_init(const struct boot_framebuffer *fb)
 {
     if (fb->address == NULL || fb->bpp != 32)
@@ -49,10 +34,10 @@ void panic_init(const struct boot_framebuffer *fb)
     screen = *fb;
     pixels = fb->address;
     pitch = fb->pitch / sizeof(uint32_t);
-    columns = fb->width / GLYPH_SIZE;
-    rows = fb->height / GLYPH_SIZE;
-    foreground = color(0xFF, 0xFF, 0xFF);
-    background = color(0x00, 0x00, 0xAA);
+    columns = fb->width / FB_GLYPH_SIZE;
+    rows = fb->height / FB_GLYPH_SIZE;
+    foreground = fb_color(fb, 0xFF, 0xFF, 0xFF);
+    background = fb_color(fb, 0x00, 0x00, 0xAA);
 }
 
 static void clear_screen(void)
@@ -77,32 +62,15 @@ static void draw_box(uint32_t value)
     if (pixels == NULL)
         return;
 
-    size_t left = GLYPH_SIZE;
-    size_t top = BOX_TOP * GLYPH_SIZE;
-    size_t width = screen.width - 2 * GLYPH_SIZE;
-    size_t height = (BOX_BOTTOM - BOX_TOP) * GLYPH_SIZE;
+    size_t left = FB_GLYPH_SIZE;
+    size_t top = BOX_TOP * FB_GLYPH_SIZE;
+    size_t width = screen.width - 2 * FB_GLYPH_SIZE;
+    size_t height = (BOX_BOTTOM - BOX_TOP) * FB_GLYPH_SIZE;
 
     fill_rect(left, top, width, BOX_THICKNESS, value);
     fill_rect(left, top + height - BOX_THICKNESS, width, BOX_THICKNESS, value);
     fill_rect(left, top, BOX_THICKNESS, height, value);
     fill_rect(left + width - BOX_THICKNESS, top, BOX_THICKNESS, height, value);
-}
-
-static void draw_char(unsigned char c)
-{
-    const unsigned char *glyph = font8x8_basic[c < 128 ? c : '?'];
-    size_t left = column * GLYPH_SIZE;
-    size_t top = row * GLYPH_SIZE;
-
-    for (size_t y = 0; y < GLYPH_SIZE; y++)
-    {
-        unsigned char bits = glyph[y / GLYPH_SCALE];
-        for (size_t x = 0; x < GLYPH_SIZE; x++)
-        {
-            bool set = bits & (1 << (x / GLYPH_SCALE));
-            pixels[(top + y) * pitch + left + x] = set ? foreground : background;
-        }
-    }
 }
 
 void panic_put_char(char c)
@@ -115,7 +83,8 @@ void panic_put_char(char c)
         return;
 
     if (c != '\n' && row < rows)
-        draw_char(c);
+        fb_draw_glyph(pixels, pitch, column * FB_GLYPH_SIZE, row * FB_GLYPH_SIZE,
+                      c, foreground, background);
 
     if (c == '\n' || ++column >= columns - MARGIN)
     {

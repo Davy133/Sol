@@ -5,5 +5,5 @@
 <h1 align="center">Sol</h1>
 
 <p align="center">
-  
+
 </p>

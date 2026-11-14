@@ -1,9 +1,8 @@
 #include <kernel/io.h>
 #include <kernel/panic.h>
+#include <kernel/pit.h>
 
 #define PIT_CHANNEL2    0x42
-#define PIT_COMMAND     0x43
-#define PIT_BASE_HZ     1193182
 #define PIT_SPEAKER_WAVE 0xB6   /* Channel 2, low then high byte, mode 3 */
 
 #define SPEAKER_PORT    0x61

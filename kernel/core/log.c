@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <stdio.h>
 
+#include <asm/irq.h>
 #include <kernel/log.h>
 #include <kernel/pit.h>
 #include <kernel/serial.h>
@@ -9,44 +10,16 @@
 
 static uint8_t log_lock;
 
-/*
- * Circular log history.
- *
- * log_start points to the oldest entry.
- * log_count tracks the number of valid entries.
- * When full, new entries overwrite the oldest ones.
- *
- * Access is protected by the logger lock.
- */
+/* Circular history: log_start is the oldest entry. Guarded by log_lock. */
 static struct klog_entry log_buffer[KLOG_BUFFER_CAPACITY];
 static size_t log_start;
 static size_t log_count;
 
-static enum klog_level terminal_min_level = KLOG_DEBUG;
-static enum klog_level serial_min_level = KLOG_DEBUG;
+static const enum klog_level terminal_min_level = KLOG_DEBUG;
+static const enum klog_level serial_min_level = KLOG_DEBUG;
 
 static struct klog_entry* active_entry;
 static size_t active_length;
-
-static uint64_t irq_save(void) {
-    uint64_t flags;
-
-    asm volatile(
-        "pushfq\n\t"
-        "popq %0\n\t"
-        "cli"
-        : "=r"(flags)
-        :
-        : "memory"
-    );
-
-    return flags;
-}
-
-static void irq_restore(uint64_t flags) {
-    if (flags & (1ULL << 9))
-        asm volatile("sti" ::: "memory");
-}
 
 static bool klog_trylock(void) {
     return !__atomic_exchange_n(&log_lock, 1, __ATOMIC_ACQUIRE);
@@ -66,44 +39,6 @@ static uint64_t klog_lock_irqsave(void) {
 static void klog_unlock_irqrestore(uint64_t flags) {
     __atomic_store_n(&log_lock, 0, __ATOMIC_RELEASE);
     irq_restore(flags);
-}
-
-bool klog_set_terminal_level(enum klog_level level) {
-    if ((unsigned int)level > KLOG_ERROR)
-        return false;
-
-    uint64_t flags = klog_lock_irqsave();
-    terminal_min_level = level;
-    klog_unlock_irqrestore(flags);
-
-    return true;
-}
-
-bool klog_set_serial_level(enum klog_level level) {
-    if ((unsigned int)level > KLOG_ERROR)
-        return false;
-
-    uint64_t flags = klog_lock_irqsave();
-    serial_min_level = level;
-    klog_unlock_irqrestore(flags);
-
-    return true;
-}
-
-enum klog_level klog_get_terminal_level(void) {
-    uint64_t flags = klog_lock_irqsave();
-    enum klog_level level = terminal_min_level;
-    klog_unlock_irqrestore(flags);
-
-    return level;
-}
-
-enum klog_level klog_get_serial_level(void) {
-    uint64_t flags = klog_lock_irqsave();
-    enum klog_level level = serial_min_level;
-    klog_unlock_irqrestore(flags);
-
-    return level;
 }
 
 static void klog_begin(enum klog_level level) {
@@ -126,9 +61,6 @@ static void klog_begin(enum klog_level level) {
     active_length = 0;
 }
 
-/*
- * Finalizes the active entry.
- */
 static void klog_end(void) {
     if (active_entry != NULL) {
         active_entry->message[active_length] = '\0';
@@ -137,9 +69,6 @@ static void klog_end(void) {
     }
 }
 
-/*
- * Prints the timestamp and severity prefix of a log entry.
- */
 static void klog_prefix(enum klog_level level, uint64_t ticks) {
     unsigned long seconds = ticks / PIT_HZ;
     unsigned long milliseconds = (ticks % PIT_HZ) * 1000 / PIT_HZ;
@@ -162,14 +91,9 @@ static void klog_prefix(enum klog_level level, uint64_t ticks) {
     }
 }
 
-/*
- * Logs a message that arrived while another klog() call holds the lock.
- *
- * Interrupts are disabled while the lock is held, so on a single CPU this
- * only happens when a fault interrupts klog() and its handler logs again.
- * Waiting would deadlock, so the message goes straight to the output
- * devices instead of the history. With SMP this must check the lock owner.
- */
+/* Reached when a fault interrupts klog() and its handler logs. Waiting for the
+   lock would deadlock, so the message skips the history. With SMP this must
+   check the lock owner. */
 static void klog_nested(enum klog_level level, const char* format, va_list arguments) {
     struct klog_entry* interrupted = active_entry;
 
@@ -207,38 +131,37 @@ void klog(enum klog_level level, const char* format, ...) {
     va_end(arguments);
 }
 
-/*
- * Captures the formatted output of the active log entry.
- * The complete output is still sent to the configured destinations,
- * even if the stored message reaches its maximum capacity.
- */
-bool klog_write_char(char c) {
-    if (active_entry == NULL)
-        return false;
+/* Interrupts stay off so a handler that prints cannot re-enter the terminal. */
+void klog_write_char(char c) {
+    uint64_t flags = irq_save();
+    bool to_terminal = true;
+    bool to_serial = true;
 
-    if (active_length < KLOG_MESSAGE_MAX - 1) {
-        active_entry->message[active_length++] = c;
-        active_entry->message[active_length] = '\0';
-    } else {
-        active_entry->truncated = true;
+    if (active_entry != NULL) {
+        if (active_length < KLOG_MESSAGE_MAX - 1) {
+            active_entry->message[active_length++] = c;
+            active_entry->message[active_length] = '\0';
+        } else {
+            active_entry->truncated = true;
+        }
+
+        to_terminal = active_entry->level >= terminal_min_level;
+        to_serial = active_entry->level >= serial_min_level;
     }
 
-    if (active_entry->level >= terminal_min_level)
+    if (to_terminal)
         terminal_putchar(c);
 
-    if (active_entry->level >= serial_min_level) {
+    if (to_serial) {
         if (c == '\n')
             serial_write('\r');
 
         serial_write(c);
     }
 
-    return true;
+    irq_restore(flags);
 }
 
-/*
- * Returns the number of entries currently stored.
- */
 size_t klog_count(void) {
     uint64_t flags = klog_lock_irqsave();
     size_t count = log_count;
@@ -247,11 +170,6 @@ size_t klog_count(void) {
     return count;
 }
 
-/*
- * Copies an entry into the caller-provided structure.
- * Index 0 represents the oldest stored entry.
- * Returns false if the index is out of range or entry is NULL.
- */
 bool klog_read(size_t index, struct klog_entry* entry) {
     if (entry == NULL)
         return false;

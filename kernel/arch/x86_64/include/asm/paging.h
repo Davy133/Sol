@@ -10,9 +10,8 @@
 #define PAGE_PAT        (1ULL << 7)     /* In a 4 KiB entry */
 #define PAGE_NX         (1ULL << 63)
 
-/* Replaces the bootloader's page tables with 4 KiB mappings of the kernel and
-   of physical memory, then starts the physical allocator. The tables' pages are
-   removed from info->memory_regions. */
+/* Replaces the bootloader's page tables with the kernel's own and starts the
+   physical allocator. The tables' pages are removed from info->memory_regions. */
 void paging_init(struct boot_info *info);
 
 /* Both work on the kernel's address space and take page-aligned addresses.
