@@ -150,8 +150,9 @@ static void map_range(uint64_t *pml4, uint64_t virt, uint64_t phys, uint64_t len
 
 static void map_kernel_segment(uint64_t *pml4, const char *start, const char *end, uint64_t flags)
 {
-    uint64_t offset = (uint64_t)(start - __kernel_start);
-    uint64_t length = ((uint64_t)(end - start) + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
+    /* Linker symbols are separate objects to C, so subtract them as integers. */
+    uint64_t offset = (uint64_t)start - (uint64_t)__kernel_start;
+    uint64_t length = ((uint64_t)end - (uint64_t)start + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
 
     map_range(pml4, (uint64_t)start, boot->kernel_physical_base + offset, length, flags);
 }
