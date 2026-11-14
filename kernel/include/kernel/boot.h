@@ -43,6 +43,12 @@ struct boot_framebuffer {
 	uint8_t blue_shift;
 };
 
+/* address is NULL when the bootloader loaded no initrd. */
+struct boot_module {
+	const void* address;
+	uint64_t size;
+};
+
 struct boot_info {
 	/* Virtual address of physical address 0. */
 	uint64_t physmap_offset;
@@ -51,6 +57,8 @@ struct boot_info {
 	struct boot_memory_region memory_regions[BOOT_MAX_MEMORY_REGIONS];
 	size_t memory_region_count;
 	struct boot_framebuffer framebuffer;
+	/* In memory reported as BOOT_MEMORY_KERNEL, so reachable through the physical map. */
+	struct boot_module initrd;
 };
 
 __attribute__((__noreturn__))

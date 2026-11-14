@@ -14,7 +14,7 @@ for CPU in qemu64 max; do
     echo "FAIL: kernel panic on -cpu $CPU" >&2
     exit 1
   fi
-  for EXPECTED in 'Kernel initialized' 'Memory self-test passed' 'Hello from user mode' 'Scheduler self-test passed' 'Welcome to the Sol shell'; do
+  for EXPECTED in 'Kernel initialized' 'Memory self-test passed' 'Hello from user mode' 'argv reached echo' 'Scheduler self-test passed' 'Welcome to the Sol shell'; do
     if ! echo "$LOG" | grep -q "$EXPECTED"; then
       echo "FAIL: missing \"$EXPECTED\" on -cpu $CPU" >&2
       exit 1

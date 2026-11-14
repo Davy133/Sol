@@ -56,6 +56,20 @@ static void terminal_putentryat(unsigned char c, size_t x, size_t y) {
 	              c, terminal_foreground, terminal_background);
 }
 
+void terminal_clear(void) {
+	if (terminal_buffer == NULL)
+		return;
+
+	for (size_t y = 0; y < terminal_rows; y++) {
+		for (size_t x = 0; x < terminal_columns; x++) {
+			if (terminal_cells[y][x] != ' ')
+				terminal_putentryat(' ', x, y);
+		}
+	}
+	terminal_row = 0;
+	terminal_column = 0;
+}
+
 /* Moves every row up by one and redraws only the cells that changed. */
 static void terminal_scroll(void) {
 	const size_t last = terminal_rows - 1;

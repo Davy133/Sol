@@ -1,12 +1,12 @@
 #include <stdint.h>
 #include <kernel/boot.h>
 #include <kernel/heap.h>
+#include <kernel/initrd.h>
 #include <kernel/log.h>
 #include <kernel/panic.h>
 #include <kernel/sched.h>
+#include <kernel/tty.h>
 
-
-extern const char user_shell_start[], user_shell_end[];
 
 void kernel_main(const struct boot_info* info) {
 
@@ -23,15 +23,23 @@ void kernel_main(const struct boot_info* info) {
          "Usable memory: %lu MiB, physical memory mapped at 0x%lx",
          usable / (1024 * 1024), info->physmap_offset);
 
+    if (info->initrd.address == NULL)
+        panic("the bootloader loaded no initrd");
+    initrd_init(info->initrd.address, info->initrd.size);
+    klog(KLOG_DEBUG, "initrd: %lu KiB at 0x%lx", info->initrd.size / 1024, (uint64_t)info->initrd.address);
+
     heap_selftest();
     klog(KLOG_INFO, "Memory self-test passed");
 
     sched_selftest();
     klog(KLOG_INFO, "Scheduler self-test passed");
 
-    if (!process_create(user_shell_start, (uintptr_t)user_shell_end - (uintptr_t)user_shell_start))
-        panic("could not start init");
-    klog(KLOG_INFO, "Started init (the shell)");
+    /* The boot log stays on the serial port and in the klog history. */
+    klog(KLOG_INFO, "Starting init (bin/sh)");
+    terminal_clear();
+
+    if (!process_spawn("bin/sh", (const char *const[]){ "sh", NULL }))
+        panic("could not start init (bin/sh)");
 
     sched_wait();
     panic("Attempted to kill init!");

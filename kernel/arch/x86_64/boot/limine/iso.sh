@@ -17,6 +17,7 @@ mkdir -p isodir/boot/limine
 mkdir -p isodir/EFI/BOOT
 
 cp sysroot/boot/sol.kernel isodir/boot/sol.kernel
+cp sysroot/boot/initrd.tar isodir/boot/initrd.tar
 cp "$LIMINE_DIR/limine.conf" isodir/boot/limine/
 cp limine-binary/limine-bios.sys \
    limine-binary/limine-bios-cd.bin \

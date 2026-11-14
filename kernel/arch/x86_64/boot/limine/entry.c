@@ -31,6 +31,12 @@ static volatile struct limine_executable_address_request executable_address_requ
     .revision = 0
 };
 
+__attribute__((used, section(".limine_requests")))
+static volatile struct limine_module_request module_request = {
+    .id = LIMINE_MODULE_REQUEST_ID,
+    .revision = 0
+};
+
 __attribute__((used, section(".limine_requests_start")))
 static volatile uint64_t limine_requests_start_marker[] = LIMINE_REQUESTS_START_MARKER;
 
@@ -114,6 +120,19 @@ static void read_framebuffer(void) {
     };
 }
 
+/* limine.conf lists the initrd as the only module. */
+static void read_initrd(void) {
+    struct limine_module_response* response = module_request.response;
+
+    if (response == NULL || response->module_count < 1)
+        return;
+
+    boot_info.initrd = (struct boot_module) {
+        .address = response->modules[0]->address,
+        .size = response->modules[0]->size,
+    };
+}
+
 void _start(void) {
     if (!LIMINE_BASE_REVISION_SUPPORTED(limine_base_revision))
         boot_fail("base revision not supported");
@@ -126,6 +145,7 @@ void _start(void) {
     boot_info.kernel_physical_base = executable_address_request.response->physical_base;
     read_memory_map();
     read_framebuffer();
+    read_initrd();
 
     arch_start(&boot_info);
 }

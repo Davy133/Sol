@@ -8,7 +8,7 @@
 
 /* Segments live in [PAGE_SIZE, USER_STACK_BOTTOM); page 0 stays unmapped so
    null pointers fault. */
-#define USER_STACK_BOTTOM (USER_STACK_TOP - PAGE_SIZE)
+#define USER_STACK_BOTTOM (USER_STACK_TOP - USER_STACK_SIZE)
 
 static bool header_valid(const Elf64_Ehdr *header, size_t size)
 {

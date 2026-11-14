@@ -1,4 +1,3 @@
 *.d
-*.elf
 *.kernel
 *.o
