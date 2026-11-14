@@ -7,6 +7,7 @@
 #include <kernel/io.h>
 #include <kernel/keyboard.h>
 #include <kernel/log.h>
+#include <kernel/pit.h>
 
 #define KEYBOARD_IRQ        1
 
@@ -28,6 +29,7 @@
 #define KBD_REPLY_ECHO      0xEE
 
 #define KBD_MAX_RETRIES     3
+#define KBD_REPLY_TICKS     (PIT_HZ / 10)
 
 #define KBD_TYPEMATIC       0x20
 
@@ -47,6 +49,7 @@ struct kbd_cmd {
 static struct kbd_cmd queue[KBD_QUEUE_SIZE];
 static unsigned int queue_head;
 static unsigned int queue_tail;
+static uint64_t sent_at;
 
 static bool queue_empty(void) {
     return queue_head == queue_tail;
@@ -64,24 +67,33 @@ static bool kbd_send_byte(uint8_t byte) {
     return false;
 }
 
+/* A command that cannot be sent gets no reply, so it is dropped here. */
 static void kbd_send_head(void) {
-    struct kbd_cmd *head = &queue[queue_head];
+    while (!queue_empty()) {
+        struct kbd_cmd *head = &queue[queue_head];
 
-    if (head->cmd_acked)
-        kbd_send_byte((uint8_t)head->data);
-    else
-        kbd_send_byte(head->cmd);
+        if (kbd_send_byte(head->cmd_acked ? (uint8_t)head->data : head->cmd)) {
+            sent_at = pit_ticks();
+            return;
+        }
+
+        queue_head = (queue_head + 1) % KBD_QUEUE_SIZE;
+    }
 }
 
 static void kbd_next_cmd(void) {
     queue_head = (queue_head + 1) % KBD_QUEUE_SIZE;
-
-    if (!queue_empty())
-        kbd_send_head();
+    kbd_send_head();
 }
 
 static void kbd_queue_cmd(uint8_t cmd, int16_t data) {
     uint64_t flags = irq_save();
+
+    if (!queue_empty() && pit_ticks() - sent_at > KBD_REPLY_TICKS) {
+        klog(KLOG_WARN, "keyboard: no reply to 0x%x", queue[queue_head].cmd);
+        kbd_next_cmd();
+    }
+
     unsigned int next = (queue_tail + 1) % KBD_QUEUE_SIZE;
 
     if (next == queue_head) {
