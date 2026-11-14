@@ -11,7 +11,7 @@ if echo "$LOG" | grep -q 'KERNEL PANIC'; then
   echo 'FAIL: kernel panic' >&2
   exit 1
 fi
-for EXPECTED in 'Kernel initialized'; do
+for EXPECTED in 'Kernel initialized' 'Memory self-test passed'; do
   if ! echo "$LOG" | grep -q "$EXPECTED"; then
     echo "FAIL: missing \"$EXPECTED\"" >&2
     exit 1

@@ -174,3 +174,34 @@ void kfree(void *pointer)
     if (block->prev != NULL && block->prev->magic == MAGIC_FREE)
         merge_with_next(block->prev);
 }
+
+/* Runs once at boot: exercises split, merge and reuse, and the page allocator. */
+void heap_selftest(void)
+{
+    void *a = kmalloc(100);
+    void *b = kmalloc(200);
+    void *c = kmalloc(300);
+
+    if (a == NULL || b == NULL || c == NULL || a == b || b == c || (uint64_t)a % HEAP_ALIGN != 0)
+        panic("heap self-test: bad allocation");
+
+    /* a and b merge into one block, which the next allocation must reuse. */
+    kfree(b);
+    kfree(a);
+    if (kmalloc(300) != a)
+        panic("heap self-test: freed blocks were not merged");
+
+    kfree(a);
+    kfree(c);
+    if (first_block != last_block || first_block->magic != MAGIC_FREE)
+        panic("heap self-test: heap did not return to one free block");
+
+    uint64_t pages = pmm_free_page_count();
+    uint64_t page = pmm_alloc_page();
+
+    if (page == 0 || pmm_free_page_count() != pages - 1)
+        panic("heap self-test: bad page allocation");
+    pmm_free_page(page);
+    if (pmm_free_page_count() != pages)
+        panic("heap self-test: page was not freed");
+}
