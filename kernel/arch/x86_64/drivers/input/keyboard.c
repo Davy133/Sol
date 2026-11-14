@@ -20,13 +20,11 @@
 #define PS2_WAIT_LOOPS      100000
 
 #define KBD_CMD_SET_LEDS    0xED
-#define KBD_CMD_ECHO        0xEE
 #define KBD_CMD_TYPEMATIC   0xF3
 #define KBD_CMD_ENABLE      0xF4
 
 #define KBD_REPLY_ACK       0xFA
 #define KBD_REPLY_RESEND    0xFE
-#define KBD_REPLY_ECHO      0xEE
 
 #define KBD_MAX_RETRIES     3
 #define KBD_REPLY_TICKS     (PIT_HZ / 10)
@@ -141,10 +139,7 @@ static bool is_reply(uint8_t byte) {
     if (queue_empty())
         return false;
 
-    if (byte == KBD_REPLY_ACK || byte == KBD_REPLY_RESEND)
-        return true;
-
-    return byte == KBD_REPLY_ECHO && queue[queue_head].cmd == KBD_CMD_ECHO;
+    return byte == KBD_REPLY_ACK || byte == KBD_REPLY_RESEND;
 }
 
 #define KBD_BUFFER_SIZE     128
@@ -184,7 +179,6 @@ int keyboard_getchar(void) {
 #define SC_LCTRL            0x1D
 #define SC_LSHIFT           0x2A
 #define SC_RSHIFT           0x36
-#define SC_LALT             0x38
 #define SC_CAPS_LOCK        0x3A
 #define SC_NUM_LOCK         0x45
 #define SC_SCROLL_LOCK      0x46
@@ -238,7 +232,7 @@ enum kbd_state {
 static enum kbd_state state = KBD_STATE_DEFAULT;
 static unsigned int pause_remaining;
 
-static bool lshift, rshift, lctrl, rctrl, lalt, ralt;
+static bool lshift, rshift, lctrl, rctrl;
 static bool caps_held, num_held, scroll_held;
 static uint8_t leds;
 
@@ -266,7 +260,6 @@ static void handle_key(uint8_t code, bool released) {
     case SC_LSHIFT:      lshift = !released; return;
     case SC_RSHIFT:      rshift = !released; return;
     case SC_LCTRL:       lctrl = !released;  return;
-    case SC_LALT:        lalt = !released;   return;
     case SC_CAPS_LOCK:   handle_lock_key(&caps_held, released, LED_CAPS_LOCK);     return;
     case SC_NUM_LOCK:    handle_lock_key(&num_held, released, LED_NUM_LOCK);       return;
     case SC_SCROLL_LOCK: handle_lock_key(&scroll_held, released, LED_SCROLL_LOCK); return;
@@ -298,9 +291,9 @@ static void handle_key(uint8_t code, bool released) {
 }
 
 static void handle_extended_key(uint8_t code, bool released) {
-    switch (code) {
-    case SC_LCTRL:  rctrl = !released; return;
-    case SC_LALT:   ralt = !released;  return;
+    if (code == SC_LCTRL) {
+        rctrl = !released;
+        return;
     }
 
     if (released)
